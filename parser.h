@@ -5,7 +5,7 @@
 #ifndef PROJECT1_PARSER_H
 #define PROJECT1_PARSER_H
 
-typedef enum command_linkage {AND, OR, ANYWAY, PIPE} command_linkage;
+typedef enum command_linkage {AND, OR, ANYWAY} command_linkage;
 
 typedef struct split_commands_info {
     char **commands;
@@ -35,5 +35,6 @@ void destruct_command_explained(command_explained* data);
 void test_construct_command_explained();
 
 char* next_parameter_value(command_explained* data);
+int has_next_command(command_explained* data);
 
 #endif //PROJECT1_PARSER_H
