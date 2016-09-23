@@ -15,5 +15,9 @@ int main(int argc, char* argv[]){
     destruct_command_explained(command_info);
     destruct_split_commands(commands_info);
 
+    test_is_valid_line();
+    test_construct_command_explained();
+
     return 0;
 }
+

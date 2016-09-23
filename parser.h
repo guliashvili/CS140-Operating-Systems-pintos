@@ -26,11 +26,13 @@ typedef struct command_explained {
 
 split_commands_info* construct_split_commands(const char * s);
 void destruct_split_commands(split_commands_info* data);
+void test_is_valid_line();
 
 command_explained* construct_command_explained(const char* command);
 command_explained* construct_command_explained_with_the_rest(command_explained* data);
 
 void destruct_command_explained(command_explained* data);
+void test_construct_command_explained();
 
 char* next_parameter_value(command_explained* data);
 

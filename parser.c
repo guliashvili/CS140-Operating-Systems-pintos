@@ -326,3 +326,81 @@ command_explained* construct_command_explained_with_the_rest(command_explained* 
     return ret;
 }
 
+void test_is_valid_line(){
+    assert(is_valid_line("a&a")<0);
+    assert(is_valid_line("a|||a")<0);
+
+    assert(is_valid_line("&&a")<0);
+    assert(is_valid_line("||a")<0);
+    assert(is_valid_line("|a")<0);
+
+
+    assert(is_valid_line("a&&")<0);
+    assert(is_valid_line("a||")<0);
+    assert(is_valid_line("a|")<0);
+
+    assert(is_valid_line("a>|")<0);
+
+    assert(is_valid_line("qva|a||a&&a") == 4);
+    assert(is_valid_line("qva|ax||bax&&cax;;;gg") == 5);
+}
+
+
+void test_construct_command_explained(){
+    command_explained *a = construct_command_explained(" gio -c 5  -7 bax >>  ff.txt  ");
+    assert(a != NULL);
+    assert(strcmp(a->command, "gio -c 5 -7 bax") == 0);
+    assert(strcmp(a->command_parameters[0], "gio") == 0);
+    assert(strcmp(a->command_parameters[1], "-c") == 0);
+    assert(strcmp(a->command_parameters[2], "5") == 0);
+    assert(strcmp(a->command_parameters[3], "-7") == 0);
+    assert(strcmp(a->command_parameters[4], "bax") == 0);
+    assert(a->command_parameters[5] == NULL);
+
+    assert(a->file_to_overwrite == NULL);
+    assert(a->file_to_read == NULL);
+    assert(strcmp(a->file_to_append, "ff.txt") == 0);
+    destruct_command_explained(a);
+
+    a = construct_command_explained(" ./gio -c 5  -7 bax >  ff.txt  ");
+    assert(a != NULL);
+    assert(strcmp(a->command, "./gio -c 5 -7 bax") == 0);
+    assert(strcmp(a->command_parameters[0], "./") == 0);
+    assert(strcmp(a->command_parameters[1], "gio") == 0);
+    assert(strcmp(a->command_parameters[2], "-c") == 0);
+    assert(strcmp(a->command_parameters[3], "5") == 0);
+    assert(strcmp(a->command_parameters[4], "-7") == 0);
+    assert(strcmp(a->command_parameters[5], "bax") == 0);
+    assert(a->command_parameters[6] == NULL);
+
+    assert(a->file_to_append == NULL);
+    assert(strcmp(a->file_to_overwrite,"ff.txt") == 0);
+    assert(a->file_to_read == NULL);
+
+    destruct_command_explained(a);
+
+    a = construct_command_explained(" ./gio -c 5  -7 bax <  ff.txt  ");
+    assert(a != NULL);
+    assert(strcmp(a->command, "./gio -c 5 -7 bax") == 0);
+    assert(strcmp(a->command_parameters[0], "./") == 0);
+    assert(strcmp(a->command_parameters[1], "gio") == 0);
+    assert(strcmp(a->command_parameters[2], "-c") == 0);
+    assert(strcmp(a->command_parameters[3], "5") == 0);
+    assert(strcmp(a->command_parameters[4], "-7") == 0);
+    assert(strcmp(a->command_parameters[5], "bax") == 0);
+    assert(a->command_parameters[6] == NULL);
+    assert(a->file_to_overwrite == NULL);
+    assert(strcmp(a->file_to_read,"ff.txt") == 0);
+    assert(a->file_to_append == NULL);
+
+    assert(strcmp(next_parameter_value(a), "./") == 0);
+    assert(strcmp(next_parameter_value(a), "gio") == 0);
+    assert(strcmp(next_parameter_value(a), "-c") == 0);
+
+    command_explained *x = construct_command_explained_with_the_rest(a);
+    assert(x != NULL);
+
+    assert(strcmp(x->command,"5 -7 bax") == 0);
+    destruct_command_explained(x);
+    destruct_command_explained(a);
+}
