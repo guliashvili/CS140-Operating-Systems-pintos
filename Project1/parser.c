@@ -7,8 +7,20 @@
 #include <assert.h>
 #include <ctype.h>
 #include "parser.h"
+#include <stdio.h>
+
+#undef NULL
+#define NULL ((void*)0)
+void FREE(void* a){
+    if(a != NULL){
+        free(a);
+    }
+}
 
 int is_valid_line(const char* s){
+    if(s == NULL){
+        return 0;
+    }
     int andd = 0;
     int orr = 0;
     int semicolon = 0;
@@ -19,19 +31,24 @@ int is_valid_line(const char* s){
     int len = 0;
     int state = -1;
 
-    for(int i = 0; s[i]; i++){
-        if(s[i] == '&'){
-            state = 0;
-            andd++;
-        }else if(s[i] == '|' && (s[i + 1] == '|' || (i && s[i-1] == '|'))){
-            state = 0;
-            orr++;
-        }else if(s[i] == ';'){
-            state = 0;
-            semicolon++;
-        }else{
-            text++;
-            state = 1;
+    for(; *s; s++){
+        switch(*s){
+            case '&':
+                state = 0;
+                andd++;
+                break;
+            case '|':
+                state = 0;
+                orr++;
+                break;
+            case ';':
+                state = 0;
+                semicolon++;
+                break;
+            default:
+                state = 1;
+                text++;
+                break;
         }
         num_of_different = !!andd + !!orr + !!semicolon;
         sum = andd + orr + semicolon;
@@ -56,6 +73,7 @@ int is_valid_line(const char* s){
                 len++;
             }
         }
+
     }
     if(sum) return -5;
 
@@ -91,20 +109,10 @@ split_commands_info* construct_split_commands(const char * s){
     }
 
     for(int i = 0; i < ret->commands_N; i++){
-        const char *find_pos;
-        while(1) {
-            find_pos = strpbrk(s, "&|;");
+        const char *find_pos = strpbrk(s, "&|;");
+        if(!find_pos)
+            find_pos = s + strlen(s);
 
-            if (!find_pos)
-                find_pos = s + strlen(s);
-
-            if(find_pos[0] == '|'
-               && (find_pos[1] != '|' || (find_pos != s && find_pos[-1] != '|'))){
-                s = find_pos + 1;
-            }else{
-                break;
-            }
-        }
         int len = find_pos - s;
         char *com = ret->commands[i] = malloc(sizeof(char) * (len + 1));
         if(com == NULL){
@@ -122,6 +130,9 @@ split_commands_info* construct_split_commands(const char * s){
             }else if(s[0] == '|' && s[1] == '|'){
                 s += 2;
                 ret->linkages[i] = OR;
+            }else if(s[0] == '|'){
+                s++;
+                ret->linkages[i] = PIPE;
             }else if(s[0] == '&' && s[1] == '&'){
                 s += 2;
                 ret->linkages[i] = AND;
@@ -139,10 +150,20 @@ split_commands_info* construct_split_commands(const char * s){
 void destruct_split_commands(split_commands_info* data){
     if(data == NULL) return;
     if(data->commands != NULL)
-        for(int i = 0; i < data->commands_N; i++) free(data->commands[i]);
-    free(data->commands);
-    free(data->linkages);
-    free(data);
+        for(int i = 0; i < data->commands_N; i++) FREE(data->commands[i]);
+    FREE(data->commands);
+    FREE(data->linkages);
+    FREE(data);
+}
+
+char* my_strdup(const char* x){
+    if(x == NULL) return NULL;
+    int len = strlen(x);
+    char* ret = malloc((len+1) * sizeof(char));
+    for(int i = 0; x[i]; i++) ret[i] = x[i];
+    ret[len] = 0;
+
+    return ret;
 }
 
 command_explained* construct_command_explained(const char* commandd){
@@ -158,8 +179,8 @@ command_explained* construct_command_explained(const char* commandd){
 
     char* command = NULL;
     {
-        //remove more then one space, and spaces in the end or at the begining
-        char *s = strdup(commandd);
+        //remove more then one space, and spaces in the end or at the beginning
+        char *s = my_strdup(commandd);
         if(s == NULL){
             destruct_command_explained(ret);
             return NULL;
@@ -273,21 +294,22 @@ command_explained* construct_command_explained(const char* commandd){
 
     return ret;
 }
-//-lreadline
 
 void destruct_command_explained(command_explained* data){
+
     if(data == NULL) return;
-    free(data->file_to_append);
-    free(data->file_to_overwrite);
-    free(data->file_to_read);
+    FREE(data->file_to_append);
 
-    free(data->command);
-
+    FREE(data->file_to_overwrite);
+    FREE(data->file_to_read);
     for(int i = 0; data->command_parameters[i]; i++){
-        free(data->command_parameters[i]);
+        FREE(data->command_parameters[i]);
     }
-    free(data->command_parameters);
-    free(data);
+
+    FREE(data->command_parameters);
+
+    FREE(data->command);
+    FREE(data);
 }
 
 int get_it(command_explained* data){
@@ -298,6 +320,12 @@ int get_it(command_explained* data){
 void set_it(command_explained* data,int it){
     if(data == NULL) return;
     data->it = it;
+}
+
+void decrease_it(command_explained* data){
+    if(data == NULL)
+        return;
+    data->it--;
 }
 
 char* next_parameter_value(command_explained* data){
@@ -323,7 +351,7 @@ command_explained* construct_command_explained_with_the_rest(command_explained* 
     s[k++] = 0;
 
     command_explained* ret = construct_command_explained(s);
-    free(s);
+    FREE(s);
     return ret;
 }
 
@@ -333,17 +361,17 @@ void test_is_valid_line(){
 
     assert(is_valid_line("&&a")<0);
     assert(is_valid_line("||a")<0);
-    assert(is_valid_line("|a")>0);
+    assert(is_valid_line("|a")<0);
 
 
     assert(is_valid_line("a&&")<0);
     assert(is_valid_line("a||")<0);
-    assert(is_valid_line("a|")>0);
+    assert(is_valid_line("a|")<0);
 
-    assert(is_valid_line("a>|")>0);
+    assert(is_valid_line("a>|")<0);
 
-    assert(is_valid_line("qva|a||a&&a") == 3);
-    assert(is_valid_line("qva|ax||bax&&cax;;;gg") == 4);
+    assert(is_valid_line("qva|a||a&&a") == 4);
+    assert(is_valid_line("qva|ax||bax&&cax;;;gg") == 5);
 }
 
 
@@ -403,26 +431,5 @@ void test_construct_command_explained(){
 
     assert(strcmp(x->command,"5 -7 bax") == 0);
     destruct_command_explained(x);
-    destruct_command_explained(a);
-
-
-
-    a = construct_command_explained(" gio -c 5  -7 bax | rax tax -c  ");
-    assert(a != NULL);
-    assert(strcmp(a->command, "gio -c 5 -7 bax | rax tax -c") == 0);
-    assert(strcmp(a->command_parameters[0], "gio") == 0);
-    assert(strcmp(a->command_parameters[1], "-c") == 0);
-    assert(strcmp(a->command_parameters[2], "5") == 0);
-    assert(strcmp(a->command_parameters[3], "-7") == 0);
-    assert(strcmp(a->command_parameters[4], "bax") == 0);
-    assert(strcmp(a->command_parameters[5], "|") == 0);
-    assert(strcmp(a->command_parameters[6], "rax") == 0);
-    assert(strcmp(a->command_parameters[7], "tax") == 0);
-    assert(strcmp(a->command_parameters[8], "-c") == 0);
-    assert(a->command_parameters[9] == NULL);
-
-    assert(a->file_to_overwrite == NULL);
-    assert(a->file_to_read == NULL);
-    assert(a->file_to_append == NULL);
     destruct_command_explained(a);
 }

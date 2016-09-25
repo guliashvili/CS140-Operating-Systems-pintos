@@ -5,4 +5,6 @@
 #ifndef PROJECT1_CONTROLLER_H
 #define PROJECT1_CONTROLLER_H
 
+int control_split_commands(char* line);
+
 #endif //PROJECT1_CONTROLLER_H
