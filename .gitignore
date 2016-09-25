@@ -20,6 +20,7 @@ CMakeLists.txt
 *.a
 *.la
 *.lo
+*/.idea/*
 /.idea/
 # Shared objects (inc. Windows DLLs)
 *.dll

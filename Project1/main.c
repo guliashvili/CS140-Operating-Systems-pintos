@@ -29,8 +29,11 @@ is_valid_line("./gio");
     test_is_valid_line();
     test_construct_command_explained();
 #endif
+    int first = 1;
     while(1){
-        char* s = readline("giooo: ");
+        char* s;
+        if(first) s = readline("gioo: "),first=0;
+        else s = readline("\ngioo: ");
         write_history(s);
 
         control_split_commands(s);

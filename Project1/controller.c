@@ -6,7 +6,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <fcntl.h>
 #include <sys/wait.h>
+
+#include "built_in_functions/cd.h"
+#include "built_in_functions/pwd.h"
+#include "built_in_functions/echo.h"
+#include "built_in_functions/export.h"
+
 #include "controller.h"
 #include "parser.h"
 
@@ -21,6 +28,7 @@ static const char* command_names[] = {"./",
                                       "type",
                                       "echo",
                                       "export",
+                                      "execute_from_PATH",
                                       NULL
 };
 static const int needs_fork_ar[] = {
@@ -34,17 +42,23 @@ static const int needs_fork_ar[] = {
         0,
         0,
         0,
-        0
+        0,
+        1,
         -1
 };
-#include<stdio.h>
-int print(command_explained* command){
-    puts(next_parameter_value(command));
-    return 0;
-}
 
 int (*functions[]) (command_explained* command) = {
-        print
+        NULL,
+        NULL,
+        cd,
+        pwd,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        echo,
+        export
 };
 
 int find_command_name_index(char* name){
@@ -54,7 +68,7 @@ int find_command_name_index(char* name){
             return i;
         }
     }
-    return 0;
+    return i - 1;
 }
 int needs_fork(command_explained* command){
     char * name = next_parameter_value(command);
@@ -81,7 +95,7 @@ static int second_thread_close[4][2] = {
 };
 static int main_thread_close[4][3] = {
         {-1, -1, -1},
-        {-1, -1, -1},
+        {-1, -1, 0},
         {-1, 1, -1},
         {-1, 1, 0}
 };
@@ -98,6 +112,16 @@ int control_command(command_explained* command, int* last_pipe, int last_pipe_ma
         int ret;
         int in = last_pipe[0];
         int out = cur_pipe[1];
+
+        if(command->file_to_append != NULL){
+            out = open(command->file_to_append,  O_WRONLY | O_APPEND | O_CREAT);
+        }
+        if(command->file_to_overwrite != NULL){
+            out = open(command->file_to_append,  O_WRONLY | O_CREAT | O_TRUNC);
+        }
+        if(command->file_to_read != NULL){
+            in = open(command->file_to_read, O_RDONLY);
+        }
 
         int in_save = -1, out_save = -1;
         if(in != -1) in_save = dup(STDIN_FILENO),dup2(in, STDIN_FILENO);
