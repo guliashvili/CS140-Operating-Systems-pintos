@@ -7,11 +7,16 @@
 int echo(command_explained  * cex){
 	if(cex == NULL) return -1;
 	char *s;
+	pid_t child;
 	while((s = next_parameter_value(cex)) != NULL){
 		if(s[0] =='$'){
-			s = s + 1;
-			char * val = getenv(s);
-			return write(STDOUT_FILENO, val, strlen(val));
+			if*(s[1] !='?'){
+				s = s + 1;
+				char * val = getenv(s);
+				return write(STDOUT_FILENO, val, strlen(val));
+			}else{
+				/////
+			}
 		}else{
             int k = 0;
             char* print = malloc(strlen(s));

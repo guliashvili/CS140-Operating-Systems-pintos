@@ -13,6 +13,9 @@
 #include "built_in_functions/pwd.h"
 #include "built_in_functions/echo.h"
 #include "built_in_functions/export.h"
+#include "built_in_functions/execute_path.h"
+#include "built_in_functions/exit.h"
+
 
 #include "controller.h"
 #include "parser.h"
@@ -52,14 +55,20 @@ int (*functions[]) (command_explained* command) = {
         NULL,
         cd,
         pwd,
-        NULL,
+        MyExit,
         NULL,
         NULL,
         NULL,
         NULL,
         echo,
-        export
+        export,
+        execute_path
 };
+static int last_child_status_code = 0;
+
+int get_last_child_return_code(){
+    return last_child_status_code;
+}
 
 int find_command_name_index(char* name){
     int i = 0;
@@ -114,13 +123,16 @@ int control_command(command_explained* command, int* last_pipe, int last_pipe_ma
         int out = cur_pipe[1];
 
         if(command->file_to_append != NULL){
-            out = open(command->file_to_append,  O_WRONLY | O_APPEND | O_CREAT);
+            out = open(command->file_to_append,  O_WRONLY | O_APPEND | O_CREAT, S_IRWXO | S_IRWXG | S_IRWXU);
+            if(out == -1) return -1;
         }
         if(command->file_to_overwrite != NULL){
-            out = open(command->file_to_append,  O_WRONLY | O_CREAT | O_TRUNC);
+            out = open(command->file_to_overwrite,  O_WRONLY | O_CREAT | O_TRUNC, S_IRWXO | S_IRWXG | S_IRWXU);
+            if(out == -1) return -1;
         }
         if(command->file_to_read != NULL){
             in = open(command->file_to_read, O_RDONLY);
+            if(in == -1) return -1;
         }
 
         int in_save = -1, out_save = -1;
@@ -146,7 +158,7 @@ int control_command(command_explained* command, int* last_pipe, int last_pipe_ma
         if (name == NULL) assert(0);
 
         int commad_name_index = find_command_name_index(name);
-
+        if(strcmp(command_names[commad_name_index],name) != 0) decrease_it(command);
         ret = functions[commad_name_index](command);
 
         int cur_close_l = first_thread_close[cur_pipe_mask][1];
@@ -167,10 +179,17 @@ int control_command(command_explained* command, int* last_pipe, int last_pipe_ma
             close(STDIN_FILENO);
             dup2(in_save, STDIN_FILENO);
         }
+        if(command->file_to_read != NULL){
+            close(in);
+        }
+
 
         if(out != -1){
             close(STDOUT_FILENO);
             dup2(out_save, STDOUT_FILENO);
+        }
+        if(command->file_to_append != NULL || command->file_to_overwrite != NULL){
+            close(out);
         }
 
 
@@ -178,7 +197,7 @@ int control_command(command_explained* command, int* last_pipe, int last_pipe_ma
     }else{
         int status;
         if(wait(&status))
-            return WEXITSTATUS(status);
+            return last_child_status_code = WEXITSTATUS(status);
         else
             return -1;
     }
