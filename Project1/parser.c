@@ -221,7 +221,8 @@ command_explained* construct_command_explained(const char* commandd){
 
         ret->file_to_read = file_in;
 
-    }else if(file_out != NULL){
+    }
+    if(file_out != NULL){
         *file_out = 0;
 
         command = file_out + 1;
