@@ -7,6 +7,6 @@
 
 #include "../parser.h"
 
-int MyExit(command_explained  * cex);
+int MyExit(command_explained *cex);
 
 #endif //PROJECT1_EXIT_H
