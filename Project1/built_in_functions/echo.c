@@ -33,6 +33,7 @@ int echo(command_explained *cex) {
         }
         first_line = 0;
     }
+    write(STDOUT_FILENO, "\n", 1);
 
     return 0;
 }
