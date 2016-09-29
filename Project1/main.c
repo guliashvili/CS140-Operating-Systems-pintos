@@ -2,7 +2,6 @@
 // Created by Giorgi Guliashvili on 9/23/16.
 //
 
-#include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <stdlib.h>
@@ -13,7 +12,7 @@
 #include "controller.h"
 #include "parser.h"
 
-//#define NDEBUG
+#define NDEBUG
 //#define TEST
 
 void  func(int signal){

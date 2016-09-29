@@ -90,7 +90,6 @@ int needs_fork(command_explained *command) {
     return needs_fork_ar[i];
 }
 
-#include <stdio.h>
 int control_command(command_explained *command, int *last_pipe, int *cur_pipe) {
     if (command == NULL)
         return -1;

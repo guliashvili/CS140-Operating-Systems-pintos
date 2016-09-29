@@ -7,6 +7,8 @@
 
 int FlagUlimit(command_explained *cex, struct rlimit *r, int flag);
 
+void AFlag(command_explained *cex, struct rlimit *r);
+
 int MyUlimit(command_explained *cex);
 
 

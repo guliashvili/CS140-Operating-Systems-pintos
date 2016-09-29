@@ -6,7 +6,6 @@
 #include <sys/wait.h>
 #include "nice.h"
 #include "utility.h"
-#include <stdio.h>
 #include "../controller.h"
 
 int MyNice(command_explained  * cex){

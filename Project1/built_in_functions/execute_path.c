@@ -1,7 +1,6 @@
 
 #include <unistd.h>
 #include "execute_path.h"
-#include <stdio.h>
 int execute_path(command_explained *cex) {
     if (cex == NULL) return -1;
     char *s = next_parameter_value(cex);

@@ -1,7 +1,6 @@
 #include "export.h"
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 int export(command_explained *cex) {
     if (cex == NULL) return -1;

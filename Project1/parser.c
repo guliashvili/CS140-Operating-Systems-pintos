@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "parser.h"
-#include <stdio.h>
 
 #undef NULL
 #define NULL ((void*)0)
@@ -16,7 +15,13 @@ void FREE(void *a) {
         free(a);
     }
 }
-
+/**
+ * ბრძანებებს ყოფს && || | ებად. ასევე ამოწმებს ზოგიერთი სახის სინტაქსურ სისწორეს.
+ * მაგალითად ა || ბ || ც | დ && ხ ზე დააბრუნებს 5_ს.
+ *
+ * @param s გასაპარსი სტრინგი
+ * @return ცალკეული ბრძანებების რაოდენობა
+ */
 int is_valid_line(const char *s) {
     if (s == NULL) {
         return 0;
@@ -81,7 +86,12 @@ int is_valid_line(const char *s) {
 
 }
 
-
+/**
+ * ჰყოფს ხაზს ცალკეულ ბრძანებებად, ინახავს როგორ არიან ისინი გადაბმულები
+ * (ლოგიკური და, პაიპი, ლოგიკური ანით ან უბრალოდ წერტილმძიმით)
+ * @param s ბრძანების მთელი ხაზი
+ * @return სწორად შევსებულ split_commands_info სტრუქტურას
+ */
 split_commands_info *construct_split_commands(const char *s) {
     split_commands_info *ret = malloc(sizeof(split_commands_info));
     if (ret == NULL) return NULL;
@@ -146,7 +156,10 @@ split_commands_info *construct_split_commands(const char *s) {
 
     return ret;
 }
-
+/**
+ * ათავისუფლებს სტრუქტურის მიერ გამოყენებულ რესურსებს
+ * @param data
+ */
 void destruct_split_commands(split_commands_info *data) {
     if (data == NULL) return;
     if (data->commands != NULL)
@@ -165,7 +178,13 @@ char *my_strdup(const char *x) {
 
     return ret;
 }
-
+/**
+ * ცალკე ინახავს ინ,აუთ ფაილებს თუ არის.
+ * აკეთებს იტერატორს და ცალკეულ სიტყვებად გადაუყვება ქომანდის სიტყვებს.
+ * სიტყვების მასივი მთავრდება ნალით.
+ * @param commandd ცალკეული ქომანდის სტრინგი
+ * @return შევსებულ command_explained სტრუქტურას
+ */
 command_explained *construct_command_explained(const char *commandd) {
     command_explained *ret = malloc(sizeof(command_explained));
     if (ret == NULL) return NULL;
@@ -295,7 +314,10 @@ command_explained *construct_command_explained(const char *commandd) {
 
     return ret;
 }
-
+/**
+ * ათავისუფლებს command_explained ის მიერ გამოყოფილლ მეხსიერებას.
+ * @param data
+ */
 void destruct_command_explained(command_explained *data) {
 
     if (data == NULL) return;
@@ -333,7 +355,11 @@ char *next_parameter_value(command_explained *data) {
     return data->command_parameters[data->it++];
 }
 
-
+/**
+ * აკეთებს command_explained ის სტრუქტურას იქიდან სადაც იტერატორია დარჩენილი.
+ * @param data
+ * @return
+ */
 command_explained *construct_command_explained_with_the_rest(command_explained *data) {
     if (data == NULL) return NULL;
     char *s;
