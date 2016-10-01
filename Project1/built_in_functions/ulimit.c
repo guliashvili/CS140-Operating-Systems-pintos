@@ -1,130 +1,132 @@
+#define _GNU_SOURCE
 #include "ulimit.h"
 #include "utility.h"
 #include <unistd.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <ctype.h>
 
 
-
-int FlagUlimit(command_explained *cex, struct rlimit *r, int flag){
+int FlagUlimit(command_explained *cex, struct rlimit *r, int flag) {
     long limit;
     int ret;
     command_explained *cexOne = construct_command_explained_with_the_rest(cex);
-    char * a = next_parameter_value(cexOne);
+    char *a = next_parameter_value(cexOne);
     ret = getrlimit(flag, r);
-    if(is_number(a) == 1){
+    if (is_number(a) == 1) {
         limit = atoll(a);
-        if(strcmp("H", next_parameter_value(cexOne)) == 0){
+        if(flag == RLIMIT_STACK) limit *= 1024;
+        if (strcmp("H", next_parameter_value(cexOne)) == 0) {
             r->rlim_max = limit;
-        }else{
+        } else {
             r->rlim_cur = limit;
         }
         ret = setrlimit(flag, r);
         free(r);
         destruct_command_explained(cexOne);
         return ret;
-        }else{
-            char * num = malloc(20);
-            if(a != NULL && strcmp("H", a) == 0){
-                gio_itoa(r->rlim_max, num, 10);
-            }else{
-                gio_itoa(r->rlim_cur, num, 10);
-            }
-            write(STDOUT_FILENO, num, strlen(num));
-            free(num);
-            destruct_command_explained(cexOne);
-            return ret;
+    } else {
+        char *num = malloc(20);
+        rlim_t to_act;
+        if (a != NULL && strcmp("H", a) == 0) {
+            to_act = r->rlim_max;
+        } else {
+            to_act = r->rlim_cur;
         }
+        if(RLIMIT_STACK == flag) to_act /= 1024;
+        if(to_act > 184467440737095){
+            strcpy(num, "unlimited");
+        }else {
+            gio_itoa(to_act, num, 10);
+        }
+        write(STDOUT_FILENO, num, strlen(num));
+        free(num);
+        destruct_command_explained(cexOne);
+        return ret;
+    }
 }
-    
 
-    void AFlag(command_explained *cex, struct rlimit *r){
-        char * ret = malloc(20);
-        char * info;
+int pipe_buffer_size() {
+    int ar[2];
+    pipe(ar);
+    long ret = fcntl(ar[1], F_GETPIPE_SZ);
+    close(ar[1]);
+    close(ar[0]);
+    char* s = malloc(20);
+    gio_itoa(ret / 8 / 1024, s, 10);
+    write(STDOUT_FILENO, s, strlen(s));
+    free(s);
+    return 0;
+}
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_CORE), ret, 10);
-        info = "\n core file size          (blocks, -c) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+void AFlag(command_explained *cex, struct rlimit *r) {
+    char *info;
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_DATA), ret, 10);
-        info = "\n data seg size           (kbytes, -d) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_RTTIME), ret, 10);
-        info = "\n scheduling priority             (-e) "; 
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n core file size          (blocks, -c) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_CORE);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_FSIZE), ret, 10);
-        info = "\n file size               (blocks, -f) "; 
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n data seg size           (kbytes, -d) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_DATA);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_SIGPENDING), ret, 10);
-        info = "\n pending signals                 (-i) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n scheduling priority             (-e) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_RTTIME);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_MEMLOCK), ret, 10);
-        info = "\n max locked memory       (kbytes, -l) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n file size               (blocks, -f) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_FSIZE);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_RSS), ret, 10);
-        info = "\n max memory size         (kbytes, -m) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
-         
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_NOFILE), ret, 10);
-        info = "\n open files                      (-n) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n pending signals                 (-i) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_SIGPENDING);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_NOFILE), ret, 10);
-        info = "\n pipe size            (512 bytes, -p) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
-    
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_MSGQUEUE), ret, 10);
-        info = "\n POSIX message queues     (bytes, -q) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
-        
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_RTPRIO), ret, 10);
-        info = "\n real-time priority              (-r) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n max locked memory       (kbytes, -l) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_MEMLOCK);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_STACK), ret, 10);
-        info = "\n stack size              (kbytes, -s) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n max memory size         (kbytes, -m) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_RSS);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_CPU), ret, 10);
-        info = "\n cpu time               (seconds, -t) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
-        
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_NPROC), ret, 10);
-        info = "\n max user processes              (-u) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n open files                      (-n) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_NOFILE);
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_AS), ret, 10);
-        info = "\n virtual memory          (kbytes, -v) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n pipe size            (512 bytes, -p) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    pipe_buffer_size();
 
-        gio_itoa(FlagUlimit(cex, r, RLIMIT_LOCKS), ret, 10);
-        info = "\n file locks                      (-x) ";
-        write(STDOUT_FILENO, info, strlen(info));
-        write(STDOUT_FILENO, ret, strlen(ret));
+    info = "\n POSIX message queues     (bytes, -q) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_MSGQUEUE);
 
-        free(ret);
+    info = "\n real-time priority              (-r) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_RTPRIO);
+
+    info = "\n stack size              (kbytes, -s) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_STACK);
+
+    info = "\n cpu time               (seconds, -t) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_CPU);
+
+    info = "\n max user processes              (-u) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_NPROC);
+
+    info = "\n virtual memory          (kbytes, -v) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_AS);
+
+    info = "\n file locks                      (-x) ";
+    write(STDOUT_FILENO, info, strlen(info));
+    FlagUlimit(cex, r, RLIMIT_LOCKS);
 }
 
 
@@ -133,47 +135,46 @@ int MyUlimit(command_explained *cex) {
     char *s;
     struct rlimit *r = malloc(2 * sizeof(rlim_t));
     while ((s = next_parameter_value(cex)) != NULL) {
-        if(strcmp("-a", s) == 0){
-            AFlag( cex, r);
+        if (strcmp("-a", s) == 0) {
+            AFlag(cex, r);
             return 1;
-        }else if(strcmp("-c", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_CORE);
-        }else if(strcmp("-d", s) == 0){ 
-                return FlagUlimit(cex, r, RLIMIT_DATA);
-        }else if(strcmp("-e", s) == 0){ 
-                return FlagUlimit(cex, r, RLIMIT_RTTIME);
-        }else if(strcmp("-f", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_FSIZE);
-        }else if(strcmp("-i", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_SIGPENDING);
-        }else if(strcmp("-l", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_MEMLOCK);
-        }else if(strcmp("-m", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_RSS);
-        }else if(strcmp("-n", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_NOFILE); 
-        }else if(strcmp("-p", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_NOFILE);
-        }else if(strcmp("-q", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_MSGQUEUE);
-        }else if(strcmp("-r", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_RTPRIO);
-        }else if(strcmp("-s", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_STACK);
-        }else if(strcmp("-t", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_CPU);
-        }else if(strcmp("-u", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_NPROC);
-        }else if(strcmp("-v", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_AS);
-        }if(strcmp("-x", s) == 0){
-                return FlagUlimit(cex, r, RLIMIT_LOCKS);
+        } else if (strcmp("-c", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_CORE);
+        } else if (strcmp("-d", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_DATA);
+        } else if (strcmp("-e", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_NICE);
+        } else if (strcmp("-f", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_FSIZE);
+        } else if (strcmp("-i", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_SIGPENDING);
+        } else if (strcmp("-l", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_MEMLOCK);
+        } else if (strcmp("-m", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_RSS);
+        } else if (strcmp("-n", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_NOFILE);
+        } else if (strcmp("-p", s) == 0) {
+            return pipe_buffer_size();
+        } else if (strcmp("-q", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_MSGQUEUE);
+        } else if (strcmp("-r", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_RTPRIO);
+        } else if (strcmp("-s", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_STACK);
+        } else if (strcmp("-t", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_CPU);
+        } else if (strcmp("-u", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_NPROC);
+        } else if (strcmp("-v", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_AS);
+        }
+        if (strcmp("-x", s) == 0) {
+            return FlagUlimit(cex, r, RLIMIT_LOCKS);
         }
 
-   }
-
+    }
 
 
     return 0;
 }
-

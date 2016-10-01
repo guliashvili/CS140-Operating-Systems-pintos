@@ -7,7 +7,7 @@
 
 
 int is_number(char *s) {
-    if(s == 0) return 0;
+    if (s == 0) return 0;
     for (int i = 0; s[i]; i++) if (!isdigit(s[i])) return 0;
     return 1;
 }

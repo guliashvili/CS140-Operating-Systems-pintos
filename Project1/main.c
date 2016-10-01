@@ -15,13 +15,13 @@
 #define NDEBUG
 //#define TEST
 
-void  func(int signal){
+void func(int signal) {
 
 }
 
 int main(int argc, char *argv[]) {
-    signal(SIGINT,func);
-    signal(SIGTSTP,func);
+    signal(SIGINT, func);
+    signal(SIGTSTP, func);
 #ifdef TEST
     is_valid_line("./gio");
 #else

@@ -15,6 +15,7 @@ void FREE(void *a) {
         free(a);
     }
 }
+
 /**
  * ბრძანებებს ყოფს && || | ებად. ასევე ამოწმებს ზოგიერთი სახის სინტაქსურ სისწორეს.
  * მაგალითად ა || ბ || ც | დ && ხ ზე დააბრუნებს 5_ს.
@@ -80,7 +81,7 @@ int is_valid_line(const char *s) {
         }
 
     }
-    if (sum) return -5;
+    if (sum - !!semicolon) return -5;
 
     return len;
 
@@ -156,6 +157,7 @@ split_commands_info *construct_split_commands(const char *s) {
 
     return ret;
 }
+
 /**
  * ათავისუფლებს სტრუქტურის მიერ გამოყენებულ რესურსებს
  * @param data
@@ -178,6 +180,7 @@ char *my_strdup(const char *x) {
 
     return ret;
 }
+
 /**
  * ცალკე ინახავს ინ,აუთ ფაილებს თუ არის.
  * აკეთებს იტერატორს და ცალკეულ სიტყვებად გადაუყვება ქომანდის სიტყვებს.
@@ -314,6 +317,7 @@ command_explained *construct_command_explained(const char *commandd) {
 
     return ret;
 }
+
 /**
  * ათავისუფლებს command_explained ის მიერ გამოყოფილლ მეხსიერებას.
  * @param data

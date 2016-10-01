@@ -7,12 +7,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/types.h>
 #include "kill.h"
 #include "utility.h"
 #include "../parser.h"
 #include "utility.h"
 
-static char * wordArr[] = {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGABRT", "SIGBUS", "SIGFPE", "SIGKILL",
+static char *wordArr[] = {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGABRT", "SIGBUS", "SIGFPE", "SIGKILL",
                           "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD",
                           "SIGCONT",
                           "SIGSTOP", "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM",

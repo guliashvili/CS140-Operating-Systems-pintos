@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "built_in_functions/about.h"
 #include "built_in_functions/cd.h"
@@ -194,17 +196,17 @@ int control_split_commands(char *line) {
 
         ret = control_command(commands_explained[i], last_pipe, cur_pipe);
 
-        if(cur_pipe[1] != -1){
+        if (cur_pipe[1] != -1) {
             int ret = close(cur_pipe[1]);
-            if(ret < 0) return ret;
+            if (ret < 0) return ret;
             cur_pipe[1] = -1;
         }
 
         assert(last_pipe[1] == -1);
 
-        if(last_pipe[0] != -1){
+        if (last_pipe[0] != -1) {
             int ret = close(last_pipe[0]);
-            if(ret < 0) return ret;
+            if (ret < 0) return ret;
             last_pipe[0] = -1;
         }
     }

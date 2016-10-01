@@ -14,20 +14,20 @@ int echo(command_explained *cex) {
             if (s[1] != '?') {
                 s = s + 1;
                 char *val = getenv(s);
-                if(!first_line) write(STDOUT_FILENO, " ",1);
+                if (!first_line) write(STDOUT_FILENO, " ", 1);
                 int ret = write(STDOUT_FILENO, val, strlen(val));
                 if (ret < 0) return ret;
             } else {
                 child = get_last_child_return_code();
-                if(!first_line) write(STDOUT_FILENO, " ",1);
+                if (!first_line) write(STDOUT_FILENO, " ", 1);
                 int ret = write(STDOUT_FILENO, &child, sizeof(int));
                 if (ret < 0) return ret;
             }
         } else {
-            if(!first_line) write(STDOUT_FILENO, " ",1);
+            if (!first_line) write(STDOUT_FILENO, " ", 1);
             int k = 0;
-            for(int i = 0; s[i]; i++) if(s[i] != '\"') s[k++] = s[i];
-            s[k]=0;
+            for (int i = 0; s[i]; i++) if (s[i] != '\"') s[k++] = s[i];
+            s[k] = 0;
             int ret = write(STDOUT_FILENO, s, strlen(s));
             if (ret < 0) return ret;
         }
