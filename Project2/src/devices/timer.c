@@ -96,7 +96,7 @@ timer_init (void)
 {
   list_init (&sleeping_threads_list);
   sema_init(&sleeping_threads_sema, 0);
-  thread_create("iavnana", PRI_MAX, background_processor, NULL);
+  thread_create("iavnana", PRI_MIN, background_processor, NULL);
 
   sema_down(&sleeping_threads_sema);
   sema_up(&sleeping_threads_sema);
