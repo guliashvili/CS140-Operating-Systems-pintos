@@ -229,7 +229,7 @@ thread_block (void)
    it may expect that it can atomically unblock a thread and
    update other data. */
 void
-thread_unblock (struct thread *t) 
+thread_unblock (struct thread *t)
 {
   enum intr_level old_level;
 
@@ -241,7 +241,27 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
+/* Transitions a blocked thread T to the ready-to-run state. (Use thread_yield() to
+   make the running thread ready.)
 
+   This function does not preempt the running thread.  This can
+   be important: if the caller had disabled interrupts itself,
+   it may expect that it can atomically unblock a thread and
+   update other data. */
+void
+try_thread_unblock (struct thread *t)
+{
+  enum intr_level old_level;
+
+  ASSERT (is_thread (t));
+
+  old_level = intr_disable ();
+  if(t->status == THREAD_BLOCKED) {
+    list_push_back(&ready_list, &t->elem);
+    t->status = THREAD_READY;
+  }
+  intr_set_level (old_level);
+}
 /* Returns the name of the running thread. */
 const char *
 thread_name (void) 
