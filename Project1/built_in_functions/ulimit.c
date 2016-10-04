@@ -34,7 +34,7 @@ int FlagUlimit(command_explained *cex, struct rlimit *r, int flag) {
         } else {
             to_act = r->rlim_cur;
         }
-        if(RLIMIT_STACK == flag) to_act /= 1024;
+        if(RLIMIT_STACK == flag || RLIMIT_MEMLOCK == flag) to_act /= 1024;
         if(to_act > 184467440737095){
             strcpy(num, "unlimited");
         }else {
@@ -74,7 +74,7 @@ void AFlag(command_explained *cex, struct rlimit *r) {
 
     info = "\n scheduling priority             (-e) ";
     write(STDOUT_FILENO, info, strlen(info));
-    FlagUlimit(cex, r, RLIMIT_RTTIME);
+    FlagUlimit(cex, r, RLIMIT_NICE);
 
     info = "\n file size               (blocks, -f) ";
     write(STDOUT_FILENO, info, strlen(info));
