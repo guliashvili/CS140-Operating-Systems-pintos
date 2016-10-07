@@ -35,8 +35,6 @@ static void init_sleeping_thread(struct sleeping_thread* sleeping_thread, int64_
   sleeping_thread->thread = thread;
 }
 static struct list sleeping_threads_list;
-static struct semaphore sleeping_threads_sema;
-static struct thread *background_thread;
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
@@ -51,55 +49,12 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-static void background_processor(void* aux UNUSED){
-  background_thread = thread_current();
-  sema_up(&sleeping_threads_sema);
-
-  while(1){
-    while(1) {
-
-
-      struct list_elem *list_elem;
-
-      sema_down(&sleeping_threads_sema);
-
-      if (list_empty(&sleeping_threads_list)) {
-        sema_up(&sleeping_threads_sema);
-        break;
-      } else {
-        list_elem = list_pop_front(&sleeping_threads_list);
-        sema_up(&sleeping_threads_sema);
-      }
-
-      struct sleeping_thread *sleeping_thread = list_entry(list_elem, struct sleeping_thread, elem);
-      ASSERT(sleeping_thread->MAGIC == SLEEPING_THREAD_MAGIC);
-      if (sleeping_thread->wake_up_time <= ticks) {
-        thread_unblock(sleeping_thread->thread);
-      } else {
-        sema_down(&sleeping_threads_sema);
-        list_push_front(&sleeping_threads_list, &sleeping_thread->elem);
-        sema_up(&sleeping_threads_sema);
-        break;
-      }
-    }
-
-    enum intr_level old_level = intr_disable();
-    thread_block();
-    intr_set_level(old_level);
-  }
-}
-
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
 timer_init (void)
 {
   list_init (&sleeping_threads_list);
-  sema_init(&sleeping_threads_sema, 0);
-  thread_create("iavnana", PRI_MIN, background_processor, NULL);
-
-  sema_down(&sleeping_threads_sema);
-  sema_up(&sleeping_threads_sema);
 
   barrier ();
   pit_configure_channel (0, 2, TIMER_FREQ);
@@ -172,13 +127,10 @@ timer_sleep (int64_t ticks)
   struct sleeping_thread my_thread;
   init_sleeping_thread(&my_thread, start + ticks, thread_current());
 
-  sema_down(&sleeping_threads_sema);
+  enum intr_level old_level = intr_disable();
 
   list_insert_ordered (&sleeping_threads_list, &my_thread.elem, sleeping_thread_less_func, NULL);
 
-  sema_up(&sleeping_threads_sema);
-
-  enum intr_level old_level = intr_disable();
   thread_block();
   intr_set_level(old_level);
 
@@ -259,12 +211,31 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  enum intr_level old_level = intr_disable();
+
   ticks++;
   thread_tick ();
 
-  if(ticks & SLEEP_APPROXIMATION){
-    try_thread_unblock(background_thread);
+  while(1) {
+    struct list_elem *list_elem;
+
+    if (list_empty(&sleeping_threads_list)) {
+      break;
+    } else {
+      list_elem = list_pop_front(&sleeping_threads_list);
+    }
+
+    struct sleeping_thread *sleeping_thread = list_entry(list_elem, struct sleeping_thread, elem);
+    ASSERT(sleeping_thread->MAGIC == SLEEPING_THREAD_MAGIC);
+    if (sleeping_thread->wake_up_time <= ticks) {
+      thread_unblock(sleeping_thread->thread);
+    } else {
+      list_push_front(&sleeping_threads_list, &sleeping_thread->elem);
+      break;
+    }
   }
+
+  intr_set_level(old_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
