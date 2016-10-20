@@ -409,6 +409,11 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice)
 {
+  enum intr_level old_level = intr_disable();
+  thread_current()->nice = nice;
+  thread_function_recompute_priority(thread_current(), NULL);
+
+  intr_set_level(old_level);
 
 }
 
@@ -416,7 +421,7 @@ thread_set_nice (int nice)
 int
 thread_get_nice (void)
 {
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -467,8 +472,8 @@ static void thread_function_recompute_recent_cpu(struct thread *t, void * aux UN
 
   fixedPoint load2x = multiplyFloatsAndInts(load_average, 2);
   fixedPoint coef = divideFloats(load2x, sumFloatsAndInts(load2x, 1));
-  t->recent_cpu = multiplyFloats(t->recent_cpu,
-                                                  coef);
+  t->recent_cpu = sumFloatsAndInts(multiplyFloats(t->recent_cpu,
+                                                  coef), t->nice);
 }
 
 void recompute_recent_cpu(void){
@@ -485,6 +490,7 @@ static void thread_function_recompute_priority(struct thread *t, void * aux UNUS
 
   fixedPoint new_priority = intToFloat(PRI_MAX);
   new_priority = subtractFloats(new_priority, divideFloatsAndInts(t->recent_cpu, 4));
+  new_priority = subtractFloatsAndInts(new_priority, t->nice << 1);
 
   int int_new_priority = floatToInt(new_priority);
   if(int_new_priority < PRI_MIN) int_new_priority = PRI_MIN;
@@ -588,6 +594,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->old_priority = t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->nice = is_thread(running_thread()) ? thread_current()->nice : 0;
   t->recent_cpu = is_thread(running_thread()) ? thread_current()->recent_cpu : 0;
 
   list_init(&t->acquired_locks_list);
