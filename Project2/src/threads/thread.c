@@ -450,7 +450,10 @@ thread_set_quite_priority(struct thread *t, int new_priority)
     add_ready_thread(t);
   }
 }
-
+/*
+  Load average variable is recomputed according to the homework formula.
+  Floating numbers are dealt with fixedpoint library.
+ */
 void recompute_load_average(void){
 
   enum intr_level old_level = intr_disable();
@@ -466,6 +469,10 @@ void recompute_load_average(void){
   intr_set_level(old_level);
 }
 
+/*
+  recent cpu variable is recomputed according to the homework formula, for specific thread.
+  Floating numbers are dealt with fixedpoint library.
+ */
 static void thread_function_recompute_recent_cpu(struct thread *t, void * aux UNUSED){
   if(t == idle_thread)
     return;
@@ -476,6 +483,10 @@ static void thread_function_recompute_recent_cpu(struct thread *t, void * aux UN
                                                   coef), t->nice);
 }
 
+/*
+  Recent cpu variables are recomputed for all the threads, according to the homework formula.
+  Floating numbers are dealt with fixedpoint library.
+ */
 void recompute_recent_cpu(void){
   enum intr_level old_level = intr_disable();
 
@@ -484,6 +495,11 @@ void recompute_recent_cpu(void){
   intr_set_level(old_level);
 }
 
+
+/*
+  priority variable is recomputed for specific thread according to the homework formula.
+  Floating numbers are dealt with fixedpoint library.
+ */
 static void thread_function_recompute_priority(struct thread *t, void * aux UNUSED){
   if( t == idle_thread)
     return;
@@ -499,6 +515,10 @@ static void thread_function_recompute_priority(struct thread *t, void * aux UNUS
   thread_set_quite_priority(t, int_new_priority);
 }
 
+/*
+  Priority variables are recomputed for every thread according to the homework formula.
+  Floating numbers are dealt with fixedpoint library.
+ */
 void recompute_priority(void){
   enum intr_level old_level = intr_disable();
 
@@ -705,6 +725,10 @@ void add_ready_thread(struct thread *t){
   list_push_back(ready_list + t->priority + PRI_AD, &t->priority_sort_elem);
 }
 
+/*
+ max(priority,t->priority) is propagated through the directed graph of waiter and holders of the locks.
+
+ */
 void propagate_priorities(struct thread *t, int priority, int level, int aux){
   if(thread_mlfqs) return;
 

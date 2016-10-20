@@ -207,7 +207,10 @@ timer_print_stats (void)
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-
+/*
+  Pops sleeping threads from the sorted list by their wake up times,
+  until wakeuptime <= now and wakes them up.
+ */
 static void wake_up_threads(){
   while(1) {
     struct list_elem *list_elem;
