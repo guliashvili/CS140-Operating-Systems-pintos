@@ -80,6 +80,8 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static void thread_function_recompute_recent_cpu(struct thread *t, void * aux UNUSED);
+static void thread_function_recompute_priority(struct thread *t, void * aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -402,6 +404,35 @@ thread_get_priority (void)
 {
   return thread_current ()->priority;
 }
+
+/* Sets the current thread's nice value to NICE. */
+void
+thread_set_nice (int nice)
+{
+
+}
+
+/* Returns the current thread's nice value. */
+int
+thread_get_nice (void)
+{
+  return 0;
+}
+
+/* Returns 100 times the system load average. */
+int
+thread_get_load_avg (void)
+{
+  return floatToIntNearest(multiplyFloatsAndInts(load_average, 100));
+}
+
+/* Returns 100 times the current thread's recent_cpu value. */
+int
+thread_get_recent_cpu (void)
+{
+  //printf("pint recent %d",floatToIntNearest(thread_current()->recent_cpu));
+  return floatToIntNearest(multiplyFloatsAndInts(thread_current()->recent_cpu, 100));
+}
 static void
 thread_set_quite_priority(struct thread *t, int new_priority)
 {
@@ -415,35 +446,59 @@ thread_set_quite_priority(struct thread *t, int new_priority)
   }
 }
 
-/* Sets the current thread's nice value to NICE. */
-void
-thread_set_nice (int nice UNUSED)
-{
-  /* Not yet implemented. */
+void recompute_load_average(void){
+
+  enum intr_level old_level = intr_disable();
+  load_average = multiplyFloats(load_average , divideFloats(intToFloat(59), intToFloat(60)));
+
+  int ready_num = (thread_current() != idle_thread);
+  int i;
+  for(i = 0; i < PRI_SIZE; i++) ready_num += list_size(ready_list + i);
+
+  load_average = sumFloats(load_average,
+                           divideFloats(intToFloat(ready_num), intToFloat(60)));
+
+  intr_set_level(old_level);
 }
 
-/* Returns the current thread's nice value. */
-int
-thread_get_nice (void)
-{
-  /* Not yet implemented. */
-  return 0;
+static void thread_function_recompute_recent_cpu(struct thread *t, void * aux UNUSED){
+  if(t == idle_thread)
+    return;
+
+  fixedPoint load2x = multiplyFloatsAndInts(load_average, 2);
+  fixedPoint coef = divideFloats(load2x, sumFloatsAndInts(load2x, 1));
+  t->recent_cpu = multiplyFloats(t->recent_cpu,
+                                                  coef);
 }
 
-/* Returns 100 times the system load average. */
-int
-thread_get_load_avg (void)
-{
-  /* Not yet implemented. */
-  return 0;
+void recompute_recent_cpu(void){
+  enum intr_level old_level = intr_disable();
+
+  thread_foreach(thread_function_recompute_recent_cpu, NULL);
+
+  intr_set_level(old_level);
 }
 
-/* Returns 100 times the current thread's recent_cpu value. */
-int
-thread_get_recent_cpu (void)
-{
-  /* Not yet implemented. */
-  return 0;
+static void thread_function_recompute_priority(struct thread *t, void * aux UNUSED){
+  if( t == idle_thread)
+    return;
+
+  fixedPoint new_priority = intToFloat(PRI_MAX);
+  new_priority = subtractFloats(new_priority, divideFloatsAndInts(t->recent_cpu, 4));
+
+  int int_new_priority = floatToInt(new_priority);
+  if(int_new_priority < PRI_MIN) int_new_priority = PRI_MIN;
+  else if(int_new_priority > PRI_MAX) int_new_priority = PRI_MAX;
+
+  thread_set_quite_priority(t, int_new_priority);
+}
+
+void recompute_priority(void){
+  enum intr_level old_level = intr_disable();
+
+  thread_foreach(thread_function_recompute_priority, NULL);
+
+  intr_set_level(old_level);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -533,13 +588,17 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->old_priority = t->priority = priority;
   t->magic = THREAD_MAGIC;
-  t->nice = is_thread(running_thread()) ? thread_current()->nice : 0;
   t->recent_cpu = is_thread(running_thread()) ? thread_current()->recent_cpu : 0;
 
   list_init(&t->acquired_locks_list);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
 
+
+  if(thread_mlfqs) {
+    t->priority = 0;
+    thread_function_recompute_priority(t, NULL);
+  }
   intr_set_level (old_level);
 }
 
@@ -640,6 +699,8 @@ void add_ready_thread(struct thread *t){
 }
 
 void propagate_priorities(struct thread *t, int priority, int level, int aux){
+  if(thread_mlfqs) return;
+
   if(!is_thread(t))
     return;
   ASSERT (!intr_context ());
