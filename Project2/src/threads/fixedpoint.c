@@ -1,5 +1,15 @@
 #include "fixedpoint.h"
 
+//#include "debug.h"
+// void tests(){
+// 	int x = 2.5 * fp;
+// 	int y = 6.25 * fp;
+// 	int z = 4.5 * fp;
+// 	assert(multiplyFloats(x , x) == y);
+// 	assert(divideFloats(y , x) == x);
+// 	assert(sumFloatsAndInts(x, 2) == z);
+// 	assert(subtractFloatsAndInts(z, 2) == x);
+// }
 
 fixedPoint intToFloat(int32_t n){
 	return n*fp;
@@ -12,7 +22,7 @@ int32_t floatToInt(fixedPoint x){
 
 int32_t floatToIntNearest(fixedPoint x){
 	if(x>0) return (x + fp/2)/fp;
-	if(x<=0) return (x - fp/2)/fp;
+	return (x - fp/2)/fp;
 }
 
 fixedPoint sumFloats(fixedPoint x, fixedPoint y){
@@ -41,6 +51,7 @@ fixedPoint subtractFloatsAndInts(fixedPoint x, int32_t n){
 	return x-n*fp;
 }
 
+
 fixedPoint multiplyFloatsAndInts(fixedPoint x, int32_t n){
 	return x*n;
 }
@@ -50,3 +61,8 @@ fixedPoint divideFloatsAndInts(fixedPoint x, int32_t n){
 }
 
 
+// int main(){
+
+// 	tests();
+// 	return 0;
+//}

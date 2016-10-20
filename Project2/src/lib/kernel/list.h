@@ -127,6 +127,7 @@ struct list
                                  { &(NAME).head, NULL } }
 
 void list_init (struct list *);
+int is_list(struct list *list);
 
 /* List traversal. */
 struct list_elem *list_begin (struct list *);

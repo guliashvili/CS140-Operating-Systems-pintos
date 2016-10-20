@@ -64,6 +64,9 @@ is_tail (struct list_elem *elem)
   ASSERT(elem->MAGIC2 == MAGIC);
   return elem->prev != NULL && elem->next == NULL;
 }
+int is_list(struct list *list){
+  return list != NULL && list->MAGIC2 == MAGIC && list->MAGIC1 == MAGIC;
+}
 
 /* Initializes LIST as an empty list. */
 void
