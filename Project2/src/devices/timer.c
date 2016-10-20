@@ -206,16 +206,7 @@ timer_print_stats (void)
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-#define SLEEP_APPROXIMATION -1
-/* Timer interrupt handler. */
-static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
-  enum intr_level old_level = intr_disable();
-
-  ticks++;
-  thread_tick ();
-
+static void wake_up_threads(){
   while(1) {
     struct list_elem *list_elem;
 
@@ -234,6 +225,19 @@ timer_interrupt (struct intr_frame *args UNUSED)
       break;
     }
   }
+}
+
+
+/* Timer interrupt handler. */
+static void
+timer_interrupt (struct intr_frame *args UNUSED)
+{
+  enum intr_level old_level = intr_disable();
+
+  ticks++;
+  thread_tick ();
+
+  wake_up_threads();
 
   intr_set_level(old_level);
 }

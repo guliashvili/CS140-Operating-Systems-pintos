@@ -88,10 +88,17 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int nice; 
+    int recent_cpu;                          /* nice */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    struct lock *lock_wait;
+    int old_priority;
+    struct list list;
+    struct list_elem list_elem;
+    struct list_elem  one_elem;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -122,6 +129,7 @@ void thread_unblock (struct thread *);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+bool is_thread (struct thread *t);
 
 void thread_exit (void) NO_RETURN;
                         void thread_yield (void);
@@ -137,5 +145,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+void donations(struct thread *thread);
 
 #endif /* threads/thread.h */
