@@ -439,6 +439,8 @@ setup_stack(const char *res, char **ep, char **strtok_data)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) {
+        *ep = PHYS_BASE;
+        
         int i;
         for(i = 0; res != NULL; i++, res = strtok_r(NULL, " ", strtok_data)){
           int r_le = strlen(res) + 1;
