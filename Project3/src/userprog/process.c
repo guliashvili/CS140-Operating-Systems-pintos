@@ -86,9 +86,12 @@ start_process (void *cmd_line)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
-{
-  while(1);
+process_wait (tid_t child_tid UNUSED) {
+  int exit_code;
+
+
+
+  return exit_code;
 }
 
 /* Free the current process's resources. */

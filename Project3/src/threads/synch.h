@@ -1,7 +1,7 @@
 #ifndef THREADS_SYNCH_H
 #define THREADS_SYNCH_H
 
-#include "list.h"
+#include <list.h>
 #include <stdbool.h>
 
 /* A counting semaphore. */
@@ -22,8 +22,6 @@ struct lock
 {
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
-    /* shared between thread and synch in order to store all the locked locks by the thread */
-    struct list_elem acquired_thread_elem;
 };
 
 void lock_init (struct lock *);

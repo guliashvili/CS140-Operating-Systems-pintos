@@ -243,18 +243,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
 
   thread_tick ();
 
-  if(thread_mlfqs) {
-    if(ticks % TIMER_FREQ == 0){
-      recompute_load_average();
-    }
-    if(ticks % TIMER_FREQ == 0){
-      recompute_recent_cpu();
-    }
-    if (ticks % 4 == 0) {
-      recompute_priority();
-    }
-  }
-
   wake_up_threads();
 
   intr_set_level(old_level);
