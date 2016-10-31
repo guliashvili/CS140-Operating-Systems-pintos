@@ -123,9 +123,8 @@ struct list
    or with an initializer using LIST_INITIALIZER:
 
        struct list my_list = LIST_INITIALIZER (my_list); */
-#define LIST_INITIALIZER(NAME) { { NULL, &(NAME).tail }, \
-                                 { &(NAME).head, NULL } }
-
+#define LIST_INITIALIZER(NAME) {23532532, {23532532, NULL, &(NAME).tail,23532532 }, \
+                                 {23532532, &(NAME).head, NULL,23532532 }, 23532532}
 void list_init (struct list *);
 int is_list(struct list *list);
 
