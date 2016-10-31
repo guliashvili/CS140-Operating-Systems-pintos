@@ -22,7 +22,7 @@ static void seek (int fd , unsigned position );
 static unsigned tell (int fd);
 static void close (int fd );
 
-#define ITH_ARG(f, i) (*(((void**)(f)->esp) + (i)))
+#define ITH_ARG(f, i, TYPE) ((TYPE)(*(((void**)(f)->esp) + (i))))
 
 struct lock fileSystem;
 struct fileInfo{
@@ -84,7 +84,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:                   /* Terminate this process. */
       break;
     case SYS_EXEC:                   /* Start another process. */
-      exec((char*)ITH_ARG(f, 1));
+      ret = exec(ITH_ARG(f, 1, const char *));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
       break;
@@ -99,7 +99,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:                   /* Read from a file. */
       break;
     case SYS_WRITE:                  /* Write to a file. */
-        write((int)ITH_ARG(f, 1), ITH_ARG(f, 2), (unsigned)ITH_ARG(f, 3));
+      ret = write(ITH_ARG(f, 1, int), ITH_ARG(f, 2, const void *), ITH_ARG(f, 3, unsigned int));
       break;
     case SYS_SEEK:                   /* Change position in a file. */
       break;
