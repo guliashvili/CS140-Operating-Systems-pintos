@@ -18,9 +18,17 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "../threads/synch.h"
+#include "../threads/flags.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
+
+struct process_arg_struct {
+  void *cmd_line;
+  int *status;
+  struct semaphore *sema;
+};
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -39,18 +47,30 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  struct semaphore sema;
+  sema_init(&sema, 0);
+  int status = -2;
+  struct process_arg_struct process_arg = {fn_copy, &status, &sema};
+
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, &process_arg);
+  if (tid == TID_ERROR) {
+    palloc_free_page(fn_copy);
+    tid = -1;
+  }
+  sema_down(&sema);
+  if(status == -1) tid = -1;
+
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *cmd_line)
+start_process (void *arg)
 {
+  struct process_arg_struct *process_arg = (struct process_arg_struct*)arg;
   struct intr_frame if_;
   bool success;
 
@@ -59,12 +79,16 @@ start_process (void *cmd_line)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (cmd_line, &if_.eip, &if_.esp);
+  success = load (process_arg->cmd_line, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (cmd_line);
-  if (!success) 
-    thread_exit ();
+  palloc_free_page (process_arg->cmd_line);
+  if (!success) {
+    process_arg->status = -1;
+    thread_exit();
+  }
+
+  sema_up(process_arg->sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

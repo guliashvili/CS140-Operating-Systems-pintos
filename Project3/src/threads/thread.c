@@ -11,6 +11,10 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "synch.h"
+#include "thread.h"
+#include "../lib/kernel/list.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -60,7 +64,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
-
+static void init_child_struct(struct thread_child *thread_child, int process_id);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
@@ -240,6 +244,13 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+}
+
+
+static void init_child_struct(struct thread_child *thread_child, int process_id){
+  sema_init(&thread_child->semaphore, 0);
+  thread_child->status = -2;
+  thread_child->process_id = process_id;
 }
 
 /* Returns the name of the running thread. */
@@ -463,6 +474,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init(&t->child_list);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
