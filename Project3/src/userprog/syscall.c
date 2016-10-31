@@ -24,9 +24,16 @@ static void close (int fd );
 
 #define ITH_ARG(f, i) (*(((void**)(f)->esp) + (i)))
 
+struct lock fileSystem;
+struct fileInfo{
+    int fileId;
+    struct list_elem elem
+    struct lock fileLock;
+};
+
 void
-syscall_init (void) 
-{
+syscall_init (void) {
+  lock_init(&fileSystem);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 const char*getname(int sys_call_id){
@@ -92,6 +99,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:                   /* Read from a file. */
       break;
     case SYS_WRITE:                  /* Write to a file. */
+        write((int)ITH_ARG(f, 1), ITH_ARG(f, 2), (unsigned)ITH_ARG(f, 3));
       break;
     case SYS_SEEK:                   /* Change position in a file. */
       break;
@@ -138,7 +146,17 @@ static bool create (const char * file , unsigned initial_size ){
     return filesys_create(file, initial_size);
 }
 static bool remove (const char * file ) {
-    return filesys_remove(file);
+  lock_acquire(&fileSystem);
+  struct fileInfo * foundFile;
+  //foundFile = findFile()
+  if(foundFile == NULL){
+
+  }
+  else{
+    lock_acquire(&foundFile->fileLock);
+  }
+  lock_release((&fileSystem));
+  return filesys_remove(file);
 }
 static int filesize (int fd ){
 
@@ -148,6 +166,11 @@ static int read (int fd , void * buffer , unsigned size ){
 
 }
 static int write (int fd , const void * buffer , unsigned size ){
+  if(1 == fd){
+    putbuf(buffer, size);
+    return size;
+  }
+  return -1;
 
 }
 
