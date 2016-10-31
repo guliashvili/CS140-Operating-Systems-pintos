@@ -77,7 +77,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:                   /* Terminate this process. */
       break;
     case SYS_EXEC:                   /* Start another process. */
-      exec(ITH_ARG(f, 1));
+      exec((char*)ITH_ARG(f, 1));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
       break;
@@ -108,8 +108,12 @@ syscall_handler (struct intr_frame *f)
 }
 
 static void exit (int status){
-    thread_exit();
-
+  struct thread *t = thread_current()->parent_thread;
+  if(t != NULL){
+    struct thread_child* tc = thread_set_child_exit_status(t, thread_tid(), status);
+    sema_up(&tc->semaphore);
+  }
+  thread_exit();
 }
 
 static void halt(){

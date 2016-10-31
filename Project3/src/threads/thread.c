@@ -342,51 +342,6 @@ thread_foreach (thread_action_func *func, void *aux)
   }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
-void
-thread_set_priority (int new_priority)
-{
-  thread_current ()->priority = new_priority;
-}
-
-/* Returns the current thread's priority. */
-int
-thread_get_priority (void)
-{
-  return thread_current ()->priority;
-}
-
-/* Sets the current thread's nice value to NICE. */
-void
-thread_set_nice (int nice UNUSED)
-{
-  /* Not yet implemented. */
-}
-
-/* Returns the current thread's nice value. */
-int
-thread_get_nice (void)
-{
-  /* Not yet implemented. */
-  return 0;
-}
-
-/* Returns 100 times the system load average. */
-int
-thread_get_load_avg (void)
-{
-  /* Not yet implemented. */
-  return 0;
-}
-
-/* Returns 100 times the current thread's recent_cpu value. */
-int
-thread_get_recent_cpu (void)
-{
-  /* Not yet implemented. */
-  return 0;
-}
-
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -472,13 +427,34 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->child_list);
+  lock_init(&t->child_list_lock);
+  t->parent_thread = running_thread()->status == THREAD_RUNNING ? thread_current() : NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+}
+
+struct thread_child* find_child_with_tid(struct thread *t, tid_t child_tid){
+  struct list_elem *e;
+  for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
+       e = list_next (e))
+  {
+    struct thread_child *t = list_entry (e, struct thread_child, link);
+    if(t->process_id == child_tid) return t;
+  }
+  return NULL;
+}
+
+struct thread_child* thread_set_child_exit_status(struct thread *t, tid_t child_tid, int status){
+  lock_acquire(&t->child_list_lock);
+  struct thread_child* child_link_in_par = find_child_with_tid(t, child_tid);
+  child_link_in_par->status = status;
+  lock_release(&t->child_list_lock);
+
+  return child_link_in_par;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

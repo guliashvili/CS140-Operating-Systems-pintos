@@ -27,7 +27,7 @@ typedef int tid_t;
 
 struct thread_child{
     struct semaphore semaphore;
-    int process_id;
+    tid_t process_id;
     int status;
 
     struct list_elem link;
@@ -96,13 +96,14 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
     struct list child_list;
+    struct lock child_list_lock;
+    struct thread *parent_thread;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -141,12 +142,6 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-int thread_get_priority (void);
-void thread_set_priority (int);
-
-int thread_get_nice (void);
-void thread_set_nice (int);
-int thread_get_recent_cpu (void);
-int thread_get_load_avg (void);
+struct thread_child* thread_set_child_exit_status(struct thread *t, tid_t child_tid, int status);
 
 #endif /* threads/thread.h */
