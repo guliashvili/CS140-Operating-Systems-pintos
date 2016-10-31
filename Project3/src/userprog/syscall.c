@@ -27,7 +27,7 @@ static void close (int fd );
 struct lock fileSystem;
 struct fileInfo{
     int fileId;
-    struct list_elem elem
+    struct list_elem elem;
     struct lock fileLock;
 };
 
