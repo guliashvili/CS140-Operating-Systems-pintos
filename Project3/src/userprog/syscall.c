@@ -124,15 +124,8 @@ static void exit (int status){
     ASSERT(tc);
     sema_up(&tc->semaphore);
   }
-  t = thread_current();
-  printf("%s: exit(%d)\n", t->name, status);
-  struct list_elem *e;
-  for (e = list_begin (&t->child_list); e != list_end (&t->child_list);)
-  {
-    struct thread_child *t = list_entry (e, struct thread_child, link);
-    e = list_next (e);
-    free(t);
-  }
+
+  printf("%s: exit(%d)\n", thread_current()->name, status);
 
   thread_exit();
 }

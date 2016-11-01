@@ -22,6 +22,7 @@
 #include "../threads/flags.h"
 #include "../threads/thread.h"
 #include "../tests/filesys/base/syn-read.h"
+#include "../lib/kernel/list.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -116,13 +117,22 @@ start_process (void *arg)
 int
 process_wait (tid_t child_tid) {
   int exit_code;
+
   struct thread_child *tc = find_child_with_tid(thread_current(), child_tid);
   if(tc == NULL)
     exit_code = -1;
   else {
+
+    ASSERT(tc->semaphore.MAGIC1 == SYNCH_SEMA_MAGIC);
     sema_down(&tc->semaphore);
-    sema_up(&tc->semaphore);
     exit_code = tc->status;
+    sema_up(&tc->semaphore);
+
+
+    lock_acquire(&thread_current()->child_list_lock);
+    list_remove(&tc->link);
+    lock_release(&thread_current()->child_list_lock);
+    return exit_code;
   }
   return exit_code;
 }

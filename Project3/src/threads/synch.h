@@ -3,12 +3,14 @@
 
 #include <list.h>
 #include <stdbool.h>
-
+#define SYNCH_SEMA_MAGIC 323253253
 /* A counting semaphore. */
 struct semaphore
 {
+    int MAGIC1;
     unsigned value;             /* Current value. */
     struct list waiters;        /* List of waiting threads. */
+    int MAGIC2;
 };
 
 void sema_init (struct semaphore *, unsigned value);

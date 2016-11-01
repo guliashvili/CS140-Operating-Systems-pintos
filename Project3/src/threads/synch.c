@@ -31,6 +31,7 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "synch.h"
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -48,6 +49,7 @@ sema_init (struct semaphore *sema, unsigned value)
 
   sema->value = value;
   list_init (&sema->waiters);
+  sema->MAGIC1 = sema->MAGIC2 = SYNCH_SEMA_MAGIC;
 }
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
@@ -64,6 +66,8 @@ sema_down (struct semaphore *sema)
 
   ASSERT (sema != NULL);
   ASSERT (!intr_context ());
+  ASSERT(sema->MAGIC2 == SYNCH_SEMA_MAGIC);
+  ASSERT(sema->MAGIC1 == SYNCH_SEMA_MAGIC);
 
   old_level = intr_disable ();
   while (sema->value == 0)
@@ -87,6 +91,8 @@ sema_try_down (struct semaphore *sema)
   bool success;
 
   ASSERT (sema != NULL);
+  ASSERT(sema->MAGIC2 == SYNCH_SEMA_MAGIC);
+  ASSERT(sema->MAGIC1 == SYNCH_SEMA_MAGIC);
 
   old_level = intr_disable ();
   if (sema->value > 0)
@@ -111,6 +117,8 @@ sema_up (struct semaphore *sema)
   enum intr_level old_level;
 
   ASSERT (sema != NULL);
+  ASSERT(sema->MAGIC2 == SYNCH_SEMA_MAGIC);
+  ASSERT(sema->MAGIC1 == SYNCH_SEMA_MAGIC);
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters))
