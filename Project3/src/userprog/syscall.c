@@ -9,6 +9,8 @@
 #include "process.h"
 #include "../filesys/filesys.h"
 #include "../threads/interrupt.h"
+#include "../lib/kernel/list.h"
+#include "../threads/malloc.h"
 
 static void syscall_handler (struct intr_frame *);
 static void halt();
@@ -75,18 +77,20 @@ syscall_handler (struct intr_frame *f)
 {
   int sys_call_id = *((int*)f->esp);
   uint32_t ret = 23464464;
-  printf("%s\n",getname(sys_call_id));
+  //printf("%s\n",getname(sys_call_id));
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
+      exit(ITH_ARG(f, 1, int));
       break;
     case SYS_EXEC:                   /* Start another process. */
       ret = exec(ITH_ARG(f, 1, const char *));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
+      ret = wait(ITH_ARG(f, 1, int));
       break;
     case SYS_CREATE:                 /* Create a file. */
       break;
@@ -111,16 +115,25 @@ syscall_handler (struct intr_frame *f)
   if(ret != 23464464){
     f->eax = ret;
   }
-
-  thread_exit ();
 }
 
 static void exit (int status){
   struct thread *t = thread_current()->parent_thread;
   if(t != NULL){
     struct thread_child* tc = thread_set_child_exit_status(t, thread_tid(), status);
+    ASSERT(tc);
     sema_up(&tc->semaphore);
   }
+  t = thread_current();
+  printf("%s: exit(%d)\n", t->name, status);
+  struct list_elem *e;
+  for (e = list_begin (&t->child_list); e != list_end (&t->child_list);)
+  {
+    struct thread_child *t = list_entry (e, struct thread_child, link);
+    e = list_next (e);
+    free(t);
+  }
+
   thread_exit();
 }
 
@@ -129,10 +142,9 @@ static void halt(){
 }
 
 static tid_t exec (const char * cmd_line ){
-    printf("gioo %s\n", cmd_line);
     tid_t processId = process_execute(cmd_line);
     if(processId != -1){
-
+    //TOTHINK
     }
 
   return processId;

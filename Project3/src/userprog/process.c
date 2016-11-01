@@ -20,6 +20,8 @@
 #include "threads/vaddr.h"
 #include "../threads/synch.h"
 #include "../threads/flags.h"
+#include "../threads/thread.h"
+#include "../tests/filesys/base/syn-read.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -43,8 +45,9 @@ process_execute (const char *file_name)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  if (fn_copy == NULL) {
     return TID_ERROR;
+  }
   strlcpy (fn_copy, file_name, PGSIZE);
 
   struct semaphore sema;
@@ -52,9 +55,9 @@ process_execute (const char *file_name)
   int status = -2;
   struct process_arg_struct process_arg = {fn_copy, &status, &sema};
 
-
+  char *tmp;
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, &process_arg);
+  tid = thread_create (strtok_r(file_name, " ", &tmp), PRI_DEFAULT, start_process, &process_arg);
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     tid = -1;
@@ -85,6 +88,7 @@ start_process (void *arg)
   palloc_free_page (process_arg->cmd_line);
   if (!success) {
     process_arg->status = -1;
+    sema_up(process_arg->sema);
     thread_exit();
   }
 
@@ -110,11 +114,16 @@ start_process (void *arg)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
+process_wait (tid_t child_tid) {
   int exit_code;
-
-
-
+  struct thread_child *tc = find_child_with_tid(thread_current(), child_tid);
+  if(tc == NULL)
+    exit_code = -1;
+  else {
+    sema_down(&tc->semaphore);
+    sema_up(&tc->semaphore);
+    exit_code = tc->status;
+  }
   return exit_code;
 }
 

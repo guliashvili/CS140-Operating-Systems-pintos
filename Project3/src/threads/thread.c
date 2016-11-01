@@ -14,6 +14,7 @@
 #include "synch.h"
 #include "thread.h"
 #include "../lib/kernel/list.h"
+#include "malloc.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -74,6 +75,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static struct thread_child* find_child_with_tid_locked(struct thread *t, tid_t child_tid);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -201,6 +203,11 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+
+  t->parent_thread = thread_current();
+  struct thread_child *tc = malloc(sizeof(struct thread_child));
+  init_child_struct(tc, t->tid);
+  list_push_back(&t->parent_thread->child_list, &tc->link);
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -430,7 +437,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   list_init(&t->child_list);
   lock_init(&t->child_list_lock);
-  t->parent_thread = running_thread()->status == THREAD_RUNNING ? thread_current() : NULL;
+  t->parent_thread = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -438,6 +445,14 @@ init_thread (struct thread *t, const char *name, int priority)
 }
 
 struct thread_child* find_child_with_tid(struct thread *t, tid_t child_tid){
+  struct thread_child* ret;
+  lock_acquire(&t->child_list_lock);
+  ret = find_child_with_tid_locked(t, child_tid);
+  lock_release(&t->child_list_lock);
+
+  return ret;
+}
+static struct thread_child* find_child_with_tid_locked(struct thread *t, tid_t child_tid){
   struct list_elem *e;
   for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
        e = list_next (e))
@@ -450,7 +465,7 @@ struct thread_child* find_child_with_tid(struct thread *t, tid_t child_tid){
 
 struct thread_child* thread_set_child_exit_status(struct thread *t, tid_t child_tid, int status){
   lock_acquire(&t->child_list_lock);
-  struct thread_child* child_link_in_par = find_child_with_tid(t, child_tid);
+  struct thread_child* child_link_in_par = find_child_with_tid_locked(t, child_tid);
   child_link_in_par->status = status;
   lock_release(&t->child_list_lock);
 

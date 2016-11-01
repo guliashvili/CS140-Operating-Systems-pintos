@@ -143,5 +143,5 @@ typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 struct thread_child* thread_set_child_exit_status(struct thread *t, tid_t child_tid, int status);
-
+struct thread_child* find_child_with_tid(struct thread *t, tid_t child_tid);
 #endif /* threads/thread.h */
