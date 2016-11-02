@@ -34,6 +34,8 @@ static void check_pointer(void *s){
     exit(-1);
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     exit(-1);
+  if(pagedir_get_page(thread_current()->pagedir, s) == NULL)
+    exit(-1);
 }
 
 static void *get_arg_pointer(struct intr_frame *f, int i){
