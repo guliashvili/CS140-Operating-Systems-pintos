@@ -12,6 +12,7 @@
 #include "../lib/kernel/list.h"
 #include "../threads/malloc.h"
 #include "threads/vaddr.h"
+#include "pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 static void halt(void);
@@ -34,7 +35,7 @@ static void check_pointer(void *s){
     exit(-1);
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     exit(-1);
-  if(pagedir_get_page(thread_current()->pagedir, s) == NULL)
+  if(pagedir_get_page(thread_current()->pagedir, s) == (void*)0)
     exit(-1);
 }
 
@@ -113,7 +114,6 @@ syscall_handler (struct intr_frame *f)
 {
   int sys_call_id = ITH_ARG(f, 0, int);
   uint32_t ret = 23464464;
-  char *file_name;char *tmp;
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */

@@ -50,8 +50,6 @@ process_execute (const char *file_name)
   sema_init(&sema, 0);
   int status = -2;
   char *tmp;
-  ASSERT(file_name != NULL);
-  ASSERT(strlen(file_name) >= 0);
 
   char *fn_copy = palloc_get_page (0);
   if (fn_copy == NULL) {
