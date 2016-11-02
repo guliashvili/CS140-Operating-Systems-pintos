@@ -26,7 +26,7 @@ static void seek (int fd , unsigned position );
 static unsigned tell (int fd);
 static void close (int fd );
 static int get_arg(struct intr_frame *f, int i);
-static void *get_arg_pointer(struct intr_frame *f, int i);
+static void *get_arg_pointer(struct intr_frame *f, int i, int len);
 static void check_pointer(void *s);
 static int wait (int pid);
 
@@ -39,12 +39,20 @@ static void check_pointer(void *s){
     exit(-1);
 }
 
-static void *get_arg_pointer(struct intr_frame *f, int i){
+static void *get_arg_pointer(struct intr_frame *f, int i, int len){
   void **p = (((void**)(f)->esp) + (i));
   check_pointer(p);
   check_pointer((char*)p + 3);
   check_pointer(*p);
   check_pointer((char*)*p + 3);
+
+  char *ret = (char*)*p;
+  check_pointer(ret);
+  if(len == -1){
+    for(;*ret;check_pointer(++ret));
+  }else{
+    for(;len >= 0; len--, check_pointer(ret++));
+  }
 
   return *p;
 }
@@ -56,7 +64,7 @@ static int get_arg(struct intr_frame *f, int i){
   return *p;
 }
 
-#define ITH_ARG_POINTER(f, i, TYPE) ((TYPE)get_arg_pointer(f, i))
+#define ITH_ARG_POINTER(f, i, TYPE, len) ((TYPE)get_arg_pointer(f, i, len))
 
 #define ITH_ARG(f, i, TYPE) ((TYPE)(get_arg(f, i)))
 
@@ -123,7 +131,7 @@ syscall_handler (struct intr_frame *f)
       exit(ITH_ARG(f, 1, int));
       break;
     case SYS_EXEC:                   /* Start another process. */
-      ret = exec(ITH_ARG_POINTER(f, 1, const char *));
+      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
       ret = wait(ITH_ARG(f, 1, int));
@@ -139,7 +147,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:                   /* Read from a file. */
       break;
     case SYS_WRITE:                  /* Write to a file. */
-      ret = write(ITH_ARG(f, 1, int), ITH_ARG_POINTER(f, 2,const void *), ITH_ARG(f, 3, unsigned int));
+      ret = write(ITH_ARG(f, 1, int), ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int)), ITH_ARG(f, 3, unsigned int));
       break;
     case SYS_SEEK:                   /* Change position in a file. */
       break;
