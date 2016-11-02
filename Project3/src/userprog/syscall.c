@@ -18,7 +18,7 @@ static void halt(void);
 static void exit (int status);
 static tid_t exec (const char * cmd_line );
 static bool create (const char * file , unsigned initial_size );
-static bool remove (const char * file);
+static bool remove_remove (const char * file);
 static int read (int fd , void * buffer , unsigned size );
 static int write (int fd , const void * buffer , unsigned size );
 static void seek (int fd , unsigned position );
@@ -113,7 +113,7 @@ syscall_handler (struct intr_frame *f)
 {
   int sys_call_id = ITH_ARG(f, 0, int);
   uint32_t ret = 23464464;
-
+  char *file_name;char *tmp;
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */
@@ -186,7 +186,7 @@ static int wait (int pid){
 static bool create (const char * file , unsigned initial_size ){
     return filesys_create(file, initial_size);
 }
-static bool remove (const char * file ) {
+static bool remove_remove (const char * file ) {
   lock_acquire(&fileSystem);
   struct fileInfo * foundFile;
   //foundFile = findFile()

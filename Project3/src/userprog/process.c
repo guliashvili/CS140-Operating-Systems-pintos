@@ -23,14 +23,18 @@
 #include "../threads/thread.h"
 #include "../tests/filesys/base/syn-read.h"
 #include "../lib/kernel/list.h"
+#include "../filesys/filesys.h"
+#include "pagedir.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (char *cmdline, void (**eip) (void), void **esp);
+bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);
 
 struct process_arg_struct {
-  void *cmd_line;
   int *status;
   struct semaphore *sema;
+  char **strtok_data;
+  char *file_name_strtok;
+  char *to_free;
 };
 
 /* Starts a new thread running a user program loaded from
@@ -40,25 +44,26 @@ struct process_arg_struct {
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
-     Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
+  struct semaphore sema;
+  sema_init(&sema, 0);
+  int status = -2;
+  char *tmp;
+  ASSERT(file_name != NULL);
+  ASSERT(strlen(file_name) >= 0);
+
+  char *fn_copy = palloc_get_page (0);
   if (fn_copy == NULL) {
     return TID_ERROR;
   }
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  struct semaphore sema;
-  sema_init(&sema, 0);
-  int status = -2;
-  struct process_arg_struct process_arg = {fn_copy, &status, &sema};
+  char * f = strtok_r(fn_copy, " ", &tmp);
+  struct process_arg_struct process_arg = {&status, &sema, &tmp, f, fn_copy};
 
-  char *tmp;
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (strtok_r(file_name, " ", &tmp), PRI_DEFAULT, start_process, &process_arg);
+  tid = thread_create (f, PRI_DEFAULT, start_process, &process_arg);
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     tid = -1;
@@ -83,12 +88,11 @@ start_process (void *arg)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (process_arg->cmd_line, &if_.eip, &if_.esp);
-
+  success = load (process_arg->file_name_strtok,process_arg->strtok_data , &if_.eip, &if_.esp);
+  palloc_free_page (process_arg->to_free);
   /* If load failed, quit. */
-  palloc_free_page (process_arg->cmd_line);
   if (!success) {
-    process_arg->status = -1;
+    *process_arg->status = -1;
     sema_up(process_arg->sema);
     thread_exit();
   }
@@ -252,8 +256,9 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (char *cmd_line, void (**eip) (void), void **esp)
+load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp)
 {
+
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -267,8 +272,6 @@ load (char *cmd_line, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char *strtok_data;
-  const char *file_name_strtok = strtok_r(cmd_line, " ", &strtok_data);
   /* Open executable file. */
   file = filesys_open (file_name_strtok);
   if (file == NULL) 
@@ -349,8 +352,9 @@ load (char *cmd_line, void (**eip) (void), void **esp)
         }
     }
 
+
   /* Set up stack. */
-  if (!setup_stack (file_name_strtok, (char**)esp, &strtok_data))
+  if (!setup_stack (file_name_strtok, (char**)esp, strtok_data))
     goto done;
 
   /* Start address. */
