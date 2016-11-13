@@ -94,7 +94,7 @@ struct list_elem
     struct list_elem *next;     /* Next list element. */
     int MAGIC1;
 };
-
+#define LIST_MAGIC 23532532
 /* List. */
 struct list
 {
@@ -123,8 +123,8 @@ struct list
    or with an initializer using LIST_INITIALIZER:
 
        struct list my_list = LIST_INITIALIZER (my_list); */
-#define LIST_INITIALIZER(NAME) {23532532, {23532532, NULL, &(NAME).tail,23532532 }, \
-                                 {23532532, &(NAME).head, NULL,23532532 }, 23532532}
+#define LIST_INITIALIZER(NAME) {LIST_MAGIC, {LIST_MAGIC, NULL, &(NAME).tail,LIST_MAGIC }, \
+                                 {LIST_MAGIC, &(NAME).head, NULL,LIST_MAGIC }, LIST_MAGIC}
 void list_init (struct list *);
 int is_list(struct list *list);
 
@@ -169,6 +169,8 @@ void list_reverse (struct list *);
 typedef bool list_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux);
+typedef bool list_equals_func (const struct list_elem *a,
+                               void *aux);
 
 /* Operations on lists with ordered elements. */
 void list_sort (struct list *,
@@ -177,6 +179,8 @@ void list_insert_ordered (struct list *, struct list_elem *,
                           list_less_func *, void *aux);
 void list_unique (struct list *, struct list *duplicates,
                   list_less_func *, void *aux);
+
+struct list_elem *list_find(struct list *,list_equals_func*, void *aux);
 
 /* Max and min. */
 struct list_elem *list_max (struct list *, list_less_func *, void *aux);

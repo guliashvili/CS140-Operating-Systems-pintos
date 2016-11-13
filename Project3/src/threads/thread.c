@@ -258,6 +258,7 @@ static void init_child_struct(struct thread_child *thread_child, int process_id)
   sema_init(&thread_child->semaphore, 0);
   thread_child->status = -2;
   thread_child->process_id = process_id;
+  thread_child->f = NULL;
 }
 
 /* Returns the name of the running thread. */
@@ -311,14 +312,40 @@ thread_exit (void)
   struct thread *t = thread_current();
   list_remove (&t->allelem);
   struct list_elem *e;
+
+  //Remove(close files and free struct) information about children(if any).
   lock_acquire(&t->child_list_lock);
   for (e = list_begin (&t->child_list); e != list_end (&t->child_list);)
   {
-    struct thread_child *t = list_entry (e, struct thread_child, link);
+    struct thread_child *tc = list_entry (e, struct thread_child, link);
+    if(tc->f != NULL) file_close(tc->f);
     e = list_next (e);
-    free(t);
+    free(tc);
   }
   lock_release(&t->child_list_lock);
+
+  //Close opened files and free their structs.
+  for (e = list_begin (&t->open_files); e != list_end (&t->open_files);)
+  {
+    struct user_file_info *tc = list_entry (e, struct user_file_info, link);
+    if(tc->f != NULL) file_close(tc->f);
+    e = list_next (e);
+    free(tc);
+  }
+
+  //Close my exe file opened in parent's struct and set NULL
+  t = thread_current()->parent_thread;
+  lock_acquire(&t->child_list_lock);
+  if(t != NULL){
+    struct thread_child* tc = find_child_with_tid_locked(t, thread_tid());
+    if(tc != NULL) {
+      if (tc->f != NULL) file_close(tc->f);
+      tc->f = NULL;
+    }
+  }
+  lock_release(&t->child_list_lock);
+
+  t = thread_current();
   t->status = THREAD_DYING;
 
   schedule ();
@@ -446,6 +473,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->magic = THREAD_MAGIC;
+  list_init(&t->open_files);
   list_init(&t->child_list);
   lock_init(&t->child_list_lock);
   t->parent_thread = NULL;

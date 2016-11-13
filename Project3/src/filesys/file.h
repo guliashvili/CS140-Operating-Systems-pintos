@@ -2,8 +2,16 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
+#include <list.h>
 
 struct inode;
+
+struct user_file_info{
+    int fd;
+    struct list_elem link;
+    struct file * f;
+};
+
 
 /* Opening and closing files. */
 struct file *file_open (struct inode *);

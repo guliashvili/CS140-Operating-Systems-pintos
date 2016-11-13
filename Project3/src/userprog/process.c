@@ -125,15 +125,14 @@ process_wait (tid_t child_tid) {
     exit_code = -1;
   else {
 
-    ASSERT(tc->semaphore.MAGIC1 == SYNCH_SEMA_MAGIC);
     sema_down(&tc->semaphore);
     exit_code = tc->status;
-    sema_up(&tc->semaphore);
 
 
     lock_acquire(&thread_current()->child_list_lock);
     list_remove(&tc->link);
     lock_release(&thread_current()->child_list_lock);
+    free(tc);
     return exit_code;
   }
   return exit_code;
@@ -277,6 +276,7 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
       printf ("load: %s: open failed\n", file_name_strtok);
       goto done; 
     }
+  file_deny_write(file);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -362,7 +362,9 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if(success) find_child_with_tid(thread_current()->parent_thread, thread_current()->tid)->f = file;
+  else file_close(file);
+
   return success;
 }
 
