@@ -35,9 +35,10 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 static void check_pointer(void *s);
+static bool check_pointer_nonsastik(void *s);
 
 static int FD_C = 2;
-bool check_pointer_nonsastik(void *s){
+static bool check_pointer_nonsastik(void *s){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     return 0;
   if(pagedir_get_page(thread_current()->pagedir, s) == (void*)0)
@@ -86,7 +87,7 @@ syscall_init (void) {
   lock_init(&fileSystem);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
-static const char*getname(int sys_call_id);
+static const char*getname(int sys_call_id) UNUSED;
 static const char*getname(int sys_call_id){
   switch (sys_call_id){
     /* Projects 2 and later. */

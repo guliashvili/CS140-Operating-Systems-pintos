@@ -25,6 +25,7 @@
 #include "../lib/kernel/list.h"
 #include "../filesys/filesys.h"
 #include "pagedir.h"
+#include "../threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);
