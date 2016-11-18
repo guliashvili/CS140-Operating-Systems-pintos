@@ -1,0 +1,208 @@
+		     +--------------------------+
+       	       	     |		CS 140		|
+		     | PROJECT 2: USER PROGRAMS	|
+		     | 	   DESIGN DOCUMENT     	|
+		     +--------------------------+
+
+---- ჯგუფი ----
+ლუკა მაჭარაძე <lmach14@freeuni.edu.ge>
+გივი ბერიძე <gberi14@freeuni.edu.ge>
+გიორგი გულიაშვილი<gguli13@freeuni.edu.ge>
+თორნიკე ჟიჟიაშვილი<tzhiz14@freeuni.edu.ge>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			   ARGUMENT PASSING
+			   ================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+არაფერი
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+მოვყვებით PHYS_BASE დან, ჯერ ვაკოპირებთ სტრინგებს. შემდეგ ვწერთ 0 ებს სანამ 4 ის ნაშთზე არ მივალთ.
+შემდეგ ვწერთ 0ს და ჩაწერილი სტრინგების ფოინთერებს ამოტრიალებული მიმდევრობით. ბოლოს პირველი არგუმენტის მისამართის მისამართს.
+არგუმენტების რაოდენობას და ნალს.
+
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+strtok thread safe არ იქნება ალბათ რაკი თვითონ ინახავს რას უთითებს(ორმა სრედმა ორ სტრინგზე რო დაიწყოს კეთება ხო ერთერთის მიმთითებელი უნდა შეინახოს მარტო). სრედ სეიფი strtok_r იც არ იქნება, კონკრეტულ ერთ სტრინგზე, მაგრამ ეს უფრო ნაკლებად საჭირო იქნება, strtok ზე კი ამის მისაღწევადაც გლობალური ლოქი დაგვჭირდებოდა.
+
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+როცა ტერმინალმა იცის ზუსტი სტანდარტი არგუმენტების გადაცემის სტილზე, შეუძლია რაღაცები დაამატოს ან განავრცოს, ან ბილთინ ფუნქციებით ჩაანაცვლოს.
+კერნელ მოუდში ნაკლებხანს იქნება და კერნელს ნაკლები პროცესიგნი ექნება გასაკეთებელი.
+
+			     SYSTEM CALLS
+			     ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+struct thread_child{
+    struct semaphore semaphore;
+    tid_t process_id;
+    int status;
+    struct file *f;
+
+    struct list_elem link;
+};
+მშობელი სრედი შვილების სტატუსის გასარკვევად ინახავს ამ სტრუქტურად თავის ლისტში. სემაფორით დაელოდება თუ არაა მკვდარი.
+ასევე ხურავს შვილის პროგრამის ფაილს თუ არ დაუხურავს.
+
+struct thread
+{
+    ...
+    struct list child_list;
+    struct lock child_list_lock;
+    struct thread *parent_thread;
+    struct list open_files;
+...
+}
+ინახავს შვილების ლისტს და ლისტზე წვდომისთვის ლოქს, რადგან კონკურენტული იქნება მასზე წვდომა.(შვილი ამატებს შლის თავის თავს და თვითონაც)
+ინახავს ფერენთს(თუკი არსებობს)
+და ღია ფაილებს.
+
+struct user_file_info{
+    int fd;
+    struct list_elem link;
+    struct file * f;
+};
+ინახავს ფაილის მისამართს და მის აიდის. ლინკი სრედის ლისტში სამყოფად.
+
+static int FD_C = 2;
+struct lock fileSystem;
+ფაილსისტემის და FD_C ს გამოყენებისას დასალოქად
+
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+ფაილ დესკრიპტორები ერთაერთია მთელ სისტემაში(ინთით შემოსაზღვრული). FD_C ყოველი ფაილის გახსნისას ერთით იზრდება(ლოქი გვაქ კონკურენტული [არ] წვდომისთვის)
+
+struct process_arg_struct {
+  int *status;
+  struct semaphore *sema;
+  char **strtok_data;
+  char *file_name_strtok;
+  char *to_free;
+};
+პროცესის შექმნისას გადასცემს სრედს და ელოდება.
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+არის ორნაირი წაკითხვა, ცვლადის და ბაფერის. ცვლადი ყველა 4 ბიტიანია და მარტივად მოწმდება.
+ბაფერის ან ნალ თერმინეითინგ სტრინგია ან უბრალოდ რაღაც ზომის. სანამ წავიკითხავთ ITH_ARG_POINTER და ITH_ARG არკვევენ არის თუ არა ვალიდური.
+ვალიდურობას საბოლოოდ არკვევს check_pointer_nonsastik რომელიც იუზერის ფეიჯდირში ამოწმებს შესაბამისი ფეიჯის არსებობას და ფიზ ბეისობაზე მეტობას.
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+ვეითი მშობლის სტრუქტურაში ეძებს შესაბამის სრედს და მის სემაფორს აკლებს. შვილი სრედი thread_exit ისას თავის სემაფორს მშობლის ლისტში ზრდის.
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+ყველაფერი წინასწარ გადის ჩექინგს. ამიტომ არაფრის გათავისუფლება არაა საჭირო თუ არასწორობას აღმოვაჩენთ.
+ცვლადების ყველა ბიტი ცალცალკე გადის შემოწმებას ფეიჯდირში არსებობაზე და ფიზ ბეისზე მეტობაზე.
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+ეგზექი შექმნილ სრედს გადასცემს ყველა საჭირო ინფორმაციას და სემაფორს. ელოდება სემაფორს სანამ არ გაზრდის. სემაფორი გაიზრდება სპროგრამის ჩატვირთვის წინ ან შეცდომის დაფიქსირებაზე(სტატუსის ჩაწერის შემდეგ))
+
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+მშობელი ელოდება სემაფორს(ადაუნებს).
+რაც არ უნდა მოხდეს შვილი სხვანაირად ვერ გაითიშება თუ thread_exit ს არ გამოიძახებს.
+სრედ ექსითი სემაფორს ზრდის(ბოლოს), მანამდე ხურავს თავის ფაილებს, შვილების ლისტს ანადგურებს.
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+მარტივია, უბრალოდ მივმართავ მისამართს და პროცესორი აგვარებს წვდომას აქტიური ფეიჯდირით.
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+წრფივი დრო ჭირდება ფაილის პოვნას დესკრიპტორით(ჰეშთეიბლით შეიძლება აჩქარება).
+კარგი ისაა რომ მთელ სისტემაში დესკრიპტორი იუნიქია და ფაილები ვერ აირევა(იუზერის შეცდომისას)
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+არშემიცვლია, მაგრამ ისინი ერთიდაიგივეს აღნიშნავენ(სინონიმებივით) არიან ჩვენთან.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+მარტივია
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+ფეიჯდირები ქაია
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+არა
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+ჩქარა
+
+>> Any other comments?
