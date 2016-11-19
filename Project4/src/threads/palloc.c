@@ -33,12 +33,12 @@
 
 /* A memory pool. */
 struct pool
-  {
+{
     struct lock lock;                   /* Mutual exclusion. */
     struct bitmap *used_map;            /* Bitmap of free pages. */
     struct frame_map *frame_map;        /* frame map only for user pool */
     uint8_t *base;                      /* Base of pool. */
-  };
+};
 
 /* Two pools: one for kernel data, one for user pages. */
 static struct pool kernel_pool, user_pool;
@@ -105,6 +105,7 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
       if (flags & PAL_ASSERT)
         PANIC ("palloc_get: out of pages");
     }
+  frame_init_multiple(pool->frame_map, page_idx, page_idx + page_cnt);
 
   return pages;
 }
@@ -147,6 +148,7 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 #endif
 
   ASSERT (bitmap_all (pool->used_map, page_idx, page_cnt));
+  frame_destroy_multiple(pool->frame_map, page_idx, page_idx + page_cnt);
   bitmap_set_multiple (pool->used_map, page_idx, page_cnt, false);
 }
 
