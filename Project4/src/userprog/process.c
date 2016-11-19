@@ -25,6 +25,7 @@
 #include "../lib/kernel/list.h"
 #include "../filesys/filesys.h"
 #include "pagedir.h"
+#include "vm/paging.h"
 #include "../threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
@@ -149,6 +150,8 @@ process_exit (void)
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
+
+  supp_pagedir_destroy(cur->supp_pagedir);
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -268,6 +271,10 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
+  t->supp_pagedir = init_supp_pagedir();
+  if(t->supp_pagedir == NULL)
+    goto done;
+
   process_activate ();
 
   /* Open executable file. */
