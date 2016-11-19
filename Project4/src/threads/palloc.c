@@ -10,6 +10,12 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "../lib/debug.h"
+#include "vaddr.h"
+#include "../lib/kernel/bitmap.h"
+#include "synch.h"
+#include "../vm/frame.h"
+#include "vm/frame.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -30,14 +36,17 @@ struct pool
   {
     struct lock lock;                   /* Mutual exclusion. */
     struct bitmap *used_map;            /* Bitmap of free pages. */
+    struct frame_map *frame_map;        /* frame map only for user pool */
     uint8_t *base;                      /* Base of pool. */
   };
 
 /* Two pools: one for kernel data, one for user pages. */
 static struct pool kernel_pool, user_pool;
 
-static void init_pool (struct pool *, void *base, size_t page_cnt,
+static void init_pool_kernel (void *base, size_t page_cnt,
                        const char *name);
+static void init_pool_user (void *base, size_t page_cnt,
+                              const char *name);
 static bool page_from_pool (const struct pool *, void *page);
 
 /* Initializes the page allocator.  At most USER_PAGE_LIMIT
@@ -56,8 +65,8 @@ palloc_init (size_t user_page_limit)
   kernel_pages = free_pages - user_pages;
 
   /* Give half of memory to kernel, half to user. */
-  init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool");
-  init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
+  init_pool_kernel (free_start, kernel_pages, "kernel pool");
+  init_pool_user (free_start + kernel_pages * PGSIZE,
              user_pages, "user pool");
 }
 
@@ -151,8 +160,9 @@ palloc_free_page (void *page)
 /* Initializes pool P as starting at START and ending at END,
    naming it NAME for debugging purposes. */
 static void
-init_pool (struct pool *p, void *base, size_t page_cnt, const char *name) 
+init_pool_kernel (void *base, size_t page_cnt, const char *name)
 {
+  struct pool *p = &kernel_pool;
   /* We'll put the pool's used_map at its base.
      Calculate the space needed for the bitmap
      and subtract it from the pool's size. */
@@ -167,8 +177,36 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
   p->base = base + bm_pages * PGSIZE;
+  p->frame_map = NULL;
 }
 
+/* Initializes pool P as starting at START and ending at END,
+   naming it NAME for debugging purposes. */
+static void
+init_pool_user (void *base, size_t page_cnt, const char *name)
+{
+  struct pool *p = &user_pool;
+  /* We'll put the pool's used_map at its base.
+     Calculate the space needed for the bitmap
+     and subtract it from the pool's size. */
+  size_t bm_pages = DIV_ROUND_UP (bitmap_buf_size (page_cnt), PGSIZE);
+  if (bm_pages > page_cnt)
+    PANIC ("Not enough memory in %s for bitmap.", name);
+  page_cnt -= bm_pages;
+
+  size_t fr_pages =  DIV_ROUND_UP (frame_buf_size (page_cnt), PGSIZE);
+  if(fr_pages > page_cnt)
+    PANIC("Not enough memory in %s for frame of total size %d.", name, frame_buf_size (page_cnt));
+  page_cnt -= fr_pages;
+
+  printf ("%zu pages available in %s.\n", page_cnt, name);
+
+  /* Initialize the pool. */
+  lock_init (&p->lock);
+  p->frame_map = frame_map_create_in_buf(page_cnt, base, fr_pages * PGSIZE);
+  p->used_map = bitmap_create_in_buf (page_cnt, base + fr_pages * PGSIZE, bm_pages * PGSIZE);
+  p->base = base + (bm_pages + fr_pages) * PGSIZE;
+}
 /* Returns true if PAGE was allocated from POOL,
    false otherwise. */
 static bool
