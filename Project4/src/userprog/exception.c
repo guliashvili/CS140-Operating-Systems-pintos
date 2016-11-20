@@ -9,6 +9,9 @@
 #include "../threads/thread.h"
 #include "userprog/syscall.h"
 #include "syscall.h"
+#include "vm/paging.h"
+#include "../vm/paging.h"
+#include "../lib/debug.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -161,7 +164,20 @@ page_fault (struct intr_frame *f)
 //          not_present ? "not present" : "rights violation",
 //          write ? "writing" : "reading",
 //          user ? "user" : "kernel");
+  if(is_kernel_vaddr(fault_addr)) exit(-1);
+  struct thread *t = thread_current();
+  if(!paging_pagedir_exists(t->pagedir, fault_addr)){
+    if(paging_supp_pagedir_exists(t->supp_pagedir, fault_addr)){
+//      char s[30];
+//      snprintf(s, 29, "ki %d", fault_addr);
+//      PANIC(s);
+      ASSERT(really_create_page(t->supp_pagedir, t->pagedir, pg_round_down(fault_addr)));
+    }else {
+      exit(-1);
+    }
+  }else {
+    exit(-1);
+  }
 
-  exit(-1);
 }
 

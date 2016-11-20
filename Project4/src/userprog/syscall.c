@@ -16,6 +16,7 @@
 #include "../filesys/file.h"
 #include "../lib/kernel/stdio.h"
 #include "userprog/syscall.h"
+#include "vm/paging.h"
 
 static struct user_file_info *find_open_file(int fd);
 static void syscall_handler (struct intr_frame *);
@@ -41,7 +42,7 @@ static int FD_C = 2;
 static bool check_pointer_nonsastik(void *s){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     return 0;
-  if(pagedir_get_page(thread_current()->pagedir, s) == (void*)0)
+  if(!paging_pagedir_exists(thread_current()->pagedir, s))
     return 0;
   return 1;
 }
