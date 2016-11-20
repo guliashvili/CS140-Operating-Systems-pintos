@@ -151,8 +151,7 @@ process_exit (void)
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
-
-  supp_pagedir_destroy(cur->supp_pagedir);
+  struct supp_page_table *supp_page = cur->supp_pagedir;
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -163,8 +162,11 @@ process_exit (void)
          directory, or our active page directory will be one
          that's been freed (and cleared). */
       cur->pagedir = NULL;
+      cur->supp_pagedir = NULL;
       pagedir_activate (NULL);
+      supp_pagedir_destroy(supp_page, pd);
       pagedir_destroy (pd);
+
     }
 }
 
@@ -457,14 +459,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       // TODO MUST GIO writable isev unda gadmoaketo writable cvladze axla 1 ia imito ro sxvanairad verdawerdi mmapis gareshe
       if(!virtually_create_page(thread_current()->supp_pagedir, upage, 1, PAL_USER, NULL)){
-        supp_page_destroy(thread_current()->supp_pagedir, upage);
+        supp_page_destroy(thread_current()->supp_pagedir, thread_current()->pagedir, upage);
         return false;
       }
 
       /* Load this page. */
       if (file_read (file, upage, page_read_bytes) != (int) page_read_bytes)
         {
-          supp_page_destroy(thread_current()->supp_pagedir, upage);
+          supp_page_destroy(thread_current()->supp_pagedir, thread_current()->pagedir, upage);
           return false;
         }
       memset (upage + page_read_bytes, 0, page_zero_bytes);
@@ -529,7 +531,7 @@ setup_stack(const char *res, char **ep, char **strtok_data)
         *ep -= sizeof(void**);
         *((void**)*ep) = NULL;
     }else{
-    supp_page_destroy(thread_current()->supp_pagedir, upage);
+    supp_page_destroy(thread_current()->supp_pagedir, thread_current()->pagedir, upage);
   }
   return success;
 }

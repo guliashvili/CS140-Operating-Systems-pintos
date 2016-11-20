@@ -14,6 +14,7 @@
 #include "lib/stdio.h"
 #include "../threads/thread.h"
 
+static void supp_page_destroy_local( uint32_t *pd, struct supp_pagedir_entry **v, void **p);
 
 struct supp_page_table* init_supp_pagedir(void){
   ASSERT(PGSIZE == sizeof(struct supp_page_table));
@@ -27,8 +28,6 @@ struct supp_pagedir_entry **
 lookup_supp_page (struct supp_page_table *table, const void *vaddr, bool create)
 {
   ASSERT (table != NULL);
-
-  ASSERT (is_user_vaddr (vaddr));
 
   struct supp_page_tabl2 *pde = table->entries[pd_no(vaddr)];
   if(pde == NULL){
@@ -61,6 +60,7 @@ bool virtually_create_page(struct supp_page_table *table, void *upage,  bool wri
     el->MAGIC = PAGING_MAGIC;
     el->flags = flag;
     el->writable = writable;
+    el->pagedir = &thread_current()->pagedir;
 
     if(file_info == NULL){
       el->file_info.page_id = -1;
@@ -77,40 +77,72 @@ bool virtually_create_page(struct supp_page_table *table, void *upage,  bool wri
 bool really_create_page(struct supp_page_table *table, uint32_t *pd, void *upage){
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
+  if(paging_pagedir_exists(pd, upage))
+    return false;
 
   struct supp_pagedir_entry ** elem = lookup_supp_page(table, upage, false);
   if(elem == NULL || *elem == NULL) return false;
 
   struct supp_pagedir_entry * el = *elem;
-  void *kpage = palloc_get_page(el->flags);
+  void *kpage = palloc_get_page_user_smartass(el->flags, &el->link);
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pg_ofs (kpage) == 0);
-  if(paging_pagedir_exists(pd, upage))
-    return false;
+
   bool ret = pagedir_set_page(pd, upage, kpage, el->writable);
+  if(!ret) palloc_free_page_smartass(kpage, &el->link);
   ASSERT(paging_pagedir_exists(pd, upage));
   return ret;
 }
-
-void supp_page_destroy(struct supp_page_table *table, void *upage){
+void supp_page_destroy(struct supp_page_table *table, uint32_t *pagedir, void *upage) {
+  struct supp_pagedir_entry **v = lookup_supp_page(table, upage, false);
+  if(v == NULL || *v == NULL) return;
+  void ** p = pagedir_get_page(pagedir, upage);
+  if(p != NULL) supp_page_destroy_local(pagedir, v, p);
+  else {
+    palloc_free_page_smartass(*p, &(*v)->link);
+    free(*v);
+    *v = NULL;
+  }
 
 }
 
+static void supp_page_destroy_local( uint32_t *pd, struct supp_pagedir_entry **v, void **p){
+  palloc_free_page_smartass(pte_get_page(*p), &(*v)->link);
+  free(*v);
+  (*v) = NULL;
+  pagedir_clear_page_given(pd, (uint32_t *)p);
+}
 
-void supp_pagedir_destroy(struct supp_page_table *table){
-  if(table == NULL) PANIC("Something went wrong in paging destroy");
-  int i,j;
-  for(i = 0; i < (1<<PTBITS); i++) if(table->entries[i] != NULL){
-      for(j = 0; j < (1<<PDBITS); j++) free(table->entries[i]->entries[j]);
+
+void supp_pagedir_destroy(struct supp_page_table *table, uint32_t *pd) {
+  if (table == NULL) PANIC("Something went wrong in paging destroy");
+  int i, j;
+  uint32_t *pde;
+  for (i = 0, pde = pd; pde < pd + pd_no(PHYS_BASE); i++, pde++) {
+    struct supp_page_tabl2 *ta = table->entries[i];
+    if(*pde & PTE_P) {ASSERT(ta != NULL);}
+
+    if (ta != NULL) {
+      uint32_t *pt = pde_get_pt (*pde);
+      uint32_t *pte;
+      for (j = 0,pte = pt; pte < pt + PGSIZE / sizeof *pte;  j++, pte++) {
+        if(*pte & PTE_P) {ASSERT(ta->entries[j] != NULL);}
+        if (ta->entries[j] != NULL) {
+          ASSERT(ta->entries[j]->MAGIC == PAGING_MAGIC);
+          supp_page_destroy_local(pd, &ta->entries[j], (void**)pte);
+        }
+      }
       palloc_free_page(table->entries[i]);
     }
+  }
+
   palloc_free_page(table);
 }
 
 bool paging_pagedir_exists(uint32_t *pagedir, const void *uaddr){
   return pagedir_get_page(pagedir, uaddr) != 0;
 }
-bool paging_supp_pagedir_exists(uint32_t *pagedir, const void *uaddr){
+bool paging_supp_pagedir_exists(struct supp_page_table *pagedir, const void *uaddr){
   struct supp_pagedir_entry **r =lookup_supp_page(pagedir, uaddr, false);
   return r != NULL && *r != NULL;
 }

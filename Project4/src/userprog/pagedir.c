@@ -5,8 +5,8 @@
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
-#include "../threads/vaddr.h"
 #include "vm/paging.h"
+#include "../vm/paging.h"
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
@@ -28,7 +28,7 @@ pagedir_create (void)
 /* Destroys page directory PD, freeing all the pages it
    references. */
 void
-pagedir_destroy (uint32_t *pd) 
+pagedir_destroy (uint32_t *pd)
 {
   uint32_t *pde;
 
@@ -43,8 +43,11 @@ pagedir_destroy (uint32_t *pd)
         uint32_t *pte;
         
         for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
-          if (*pte & PTE_P) 
-            palloc_free_page (pte_get_page (*pte));
+          if (*pte & PTE_P) {
+            NOT_REACHED();
+            palloc_free_page( pte_get_page(*pte));
+
+          }
         palloc_free_page (pt);
       }
   palloc_free_page (pd);
@@ -152,11 +155,15 @@ pagedir_clear_page (uint32_t *pd, void *upage)
   ASSERT (is_user_vaddr (upage));
 
   pte = lookup_page (pd, upage, false);
+  pagedir_clear_page_given(pd, pte);
+}
+
+void pagedir_clear_page_given(uint32_t *pd, uint32_t *pte){
   if (pte != NULL && (*pte & PTE_P) != 0)
-    {
-      *pte &= ~PTE_P;
-      invalidate_pagedir (pd);
-    }
+  {
+    *pte &= ~PTE_P;
+    invalidate_pagedir (pd);
+  }
 }
 
 /* Returns true if the PTE for virtual page VPAGE in PD is dirty,

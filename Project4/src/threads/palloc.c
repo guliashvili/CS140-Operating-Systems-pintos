@@ -80,6 +80,7 @@ void *
 palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 {
   struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+  ASSERT(pool == &kernel_pool);
   void *pages;
   size_t page_idx;
 
@@ -105,7 +106,6 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
       if (flags & PAL_ASSERT)
         PANIC ("palloc_get: out of pages");
     }
-  frame_init_multiple(pool->frame_map, page_idx, page_idx + page_cnt);
 
   return pages;
 }
@@ -121,6 +121,36 @@ void *
 palloc_get_page (enum palloc_flags flags) 
 {
   return palloc_get_multiple (flags, 1);
+}
+
+void * palloc_get_page_user_smartass(enum palloc_flags flags, struct list_elem *link){
+  struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+  ASSERT(pool == &user_pool);
+  void *pages;
+  size_t page_idx;
+
+  lock_acquire (&pool->lock);
+  page_idx = bitmap_scan_and_flip (pool->used_map, 0, 1, false);
+  lock_release (&pool->lock);
+
+  if (page_idx != BITMAP_ERROR)
+    pages = pool->base + PGSIZE * page_idx;
+  else
+    pages = NULL;
+
+  if (pages != NULL)
+  {
+    if (flags & PAL_ZERO)
+      memset (pages, 0, PGSIZE);
+  }
+  else
+  {
+    if (flags & PAL_ASSERT)
+      PANIC ("palloc_get: out of pages");
+  }
+  frame_init_single(pool->frame_map, page_idx, link);
+
+  return pages;
 }
 
 /* Frees the PAGE_CNT pages starting at PAGES. */
@@ -141,6 +171,8 @@ palloc_free_multiple (void *pages, size_t page_cnt)
   else
     NOT_REACHED ();
 
+  ASSERT(pool == &kernel_pool);
+
   page_idx = pg_no (pages) - pg_no (pool->base);
 
 #ifndef NDEBUG
@@ -148,7 +180,6 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 #endif
 
   ASSERT (bitmap_all (pool->used_map, page_idx, page_cnt));
-  frame_destroy_multiple(pool->frame_map, page_idx, page_idx + page_cnt);
   bitmap_set_multiple (pool->used_map, page_idx, page_cnt, false);
 }
 
@@ -157,6 +188,39 @@ void
 palloc_free_page (void *page) 
 {
   palloc_free_multiple (page, 1);
+}
+
+/* Frees the PAGE_CNT pages starting at PAGES. */
+void
+palloc_free_page_smartass (void *pages, struct list_elem *link)
+{
+  struct pool *pool;
+  size_t page_idx;
+
+  ASSERT (pg_ofs (pages) == 0);
+  if (pages == NULL)
+    return;
+
+  if (page_from_pool (&kernel_pool, pages))
+    pool = &kernel_pool;
+  else if (page_from_pool (&user_pool, pages))
+    pool = &user_pool;
+  else
+    NOT_REACHED ();
+
+  ASSERT(pool == &user_pool);
+
+  page_idx = pg_no (pages) - pg_no (pool->base);
+
+#ifndef NDEBUG
+  memset (pages, 0xcc, PGSIZE * 1);
+#endif
+
+  ASSERT (bitmap_all (pool->used_map, page_idx, 1));
+  //TODO GIO MUST sinqronizacia
+  if(frame_destroy_single(pool->frame_map, page_idx, link)){
+    bitmap_set_multiple (pool->used_map, page_idx, 1, false);
+  }
 }
 
 /* Initializes pool P as starting at START and ending at END,

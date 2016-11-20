@@ -4,12 +4,13 @@
 
 #include "lib/kernel/list.h"
 #include "threads/synch.h"
+#include "frame.h"
 
 size_t frame_buf_size(int pages_cnt){
   return pages_cnt * sizeof(struct frame) + sizeof(struct frame_map);
 }
 
-void frame_init_single(struct frame_map *frame_map, int i){
+void frame_init_single(struct frame_map *frame_map, int i, struct list_elem *link){
   if(frame_map == NULL) return;
   ASSERT(i >= 0);
   ASSERT(i < frame_map->num_of_frames);
@@ -17,44 +18,33 @@ void frame_init_single(struct frame_map *frame_map, int i){
   struct frame *f = frame_map->frames + i;
   list_init(&f->pointing_threads);
   lock_init(&f->lock);
+  list_push_back(&f->pointing_threads, link);
   f->MAGIC = FRAME_MAGIC;
   f->prohibit_cache = 0;
 }
 
-void frame_init_multiple(struct frame_map *frame_map, int s,int e){
-  if(frame_map == NULL) return;
-  ASSERT(s < e);
-  ASSERT(s >= 0);
-  ASSERT(e <= frame_map->num_of_frames);
-
-  for(; s < e; s++){
-    frame_init_single(frame_map, s);
+bool frame_destroy_single(struct frame_map *frame_map, int i, struct list_elem *link){
+  if(frame_map == NULL) {
+    ASSERT(0);
   }
-
-}
-
-void frame_destroy_single(struct frame_map *frame_map, int i){
-  if(frame_map == NULL) return;
   ASSERT(i >= 0);
   ASSERT(i < frame_map->num_of_frames);
 
   struct frame *f = frame_map->frames + i;
   ASSERT(f->MAGIC == FRAME_MAGIC);
-
-  f->MAGIC = -1;
-}
-
-void frame_destroy_multiple(struct frame_map *frame_map, int s,int e){
-  if(frame_map == NULL) return;
-  ASSERT(s < e);
-  ASSERT(s >= 0);
-  ASSERT(e <= frame_map->num_of_frames);
-
-  for(; s <= e; s++){
-    frame_init_single(frame_map, s);
+  bool ret;
+  lock_acquire(&f->lock);
+  list_remove(link);
+  if(list_size(&f->pointing_threads) == 0){
+    ret = true;
+    f->MAGIC = -1;
+  }else{
+    ret = false;
   }
-
+  lock_release(&f->lock);
+  return ret;
 }
+
 
 struct frame_map *frame_map_create_in_buf(int pages_cnt, void *base, size_t len){
   ASSERT(pages_cnt >= 0);
