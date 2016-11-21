@@ -17,6 +17,8 @@
 #include "../lib/kernel/stdio.h"
 #include "userprog/syscall.h"
 #include "vm/paging.h"
+#include "userprog/exception.h"
+#include "exception.h"
 
 static struct user_file_info *find_open_file(int fd);
 static void syscall_handler (struct intr_frame *);
@@ -35,50 +37,53 @@ static int write (int fd, const void *buffer, unsigned length);
 static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
-static void check_pointer(void *s);
-static bool check_pointer_nonsastik(void *s);
+static void check_pointer(uint32_t esp, void *s, bool grow);
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow);
 
 static int FD_C = 2;
-static bool check_pointer_nonsastik(void *s){
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     return 0;
-  if(!paging_pagedir_exists(thread_current()->pagedir, s))
-    return 0;
+  if(!paging_pagedir_exists(thread_current()->pagedir, s)){
+    if(grow && (is_user_vaddr(s) && stack_resized(esp, s))) return 1;
+    else
+      return 0;
+  }
   return 1;
 }
-static void check_pointer(void *s){
-  if(!check_pointer_nonsastik(s)) exit(-1);
+static void check_pointer(uint32_t esp, void *s, bool grow){
+  if(!check_pointer_nonsastik(esp, s, grow)) exit(-1);
 }
 
-static void *get_arg_pointer(struct intr_frame *f, int i, int len){
+static void *get_arg_pointer(struct intr_frame *f, int i, int len, bool grow){
   void **p = (((void**)(f)->esp) + (i));
-  check_pointer(p);
-  check_pointer((char*)p + 3);
-  check_pointer(*p);
+  check_pointer(f->esp, p, grow);
+  check_pointer(f->esp, (char*)p + 3, grow);
+  check_pointer(f->esp, *p, grow);
   //check_pointer((char*)*p + 3);
 
   char *ret = (char*)*p;
-  check_pointer(ret);
+  check_pointer(f->esp, ret, grow);
   if(len == -1){
-    for(;*ret;check_pointer(++ret));
+    for(;*ret;check_pointer(f->esp, ++ret, grow));
   }else{
-    check_pointer(ret + len);
-    for(;len >= 0; len--, check_pointer(ret++));
+    check_pointer(f->esp, ret + len, grow);
+    for(;len >= 0; len--, check_pointer(f->esp, ret++, grow));
   }
 
   return *p;
 }
-static int get_arg(struct intr_frame *f, int i){
+static int get_arg(struct intr_frame *f, int i, bool grow){
   int *p = (((int*)(f)->esp) + (i));
-  check_pointer(p);
-  check_pointer((char*)p + 3);
+  check_pointer(f->esp, p, grow);
+  check_pointer(f->esp, (char*)p + 3, grow);
 
   return *p;
 }
 
-#define ITH_ARG_POINTER(f, i, TYPE, len) ((TYPE)get_arg_pointer(f, i, len))
+#define ITH_ARG_POINTER(f, i, TYPE, len, grow) ((TYPE)get_arg_pointer(f, i, len, grow))
 
-#define ITH_ARG(f, i, TYPE) ((TYPE)(get_arg(f, i)))
+#define ITH_ARG(f, i, TYPE, grow) ((TYPE)(get_arg(f, i, grow)))
 
 
 struct lock fileSystem;
@@ -89,7 +94,7 @@ syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 static const char*getname(int sys_call_id) UNUSED;
-static const char*getname(int sys_call_id){
+                                           static const char*getname(int sys_call_id){
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */
@@ -127,7 +132,7 @@ static const char*getname(int sys_call_id){
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int sys_call_id = ITH_ARG(f, 0, int);
+  int sys_call_id = ITH_ARG(f, 0, int, false);
   uint32_t ret = 23464464;
   switch (sys_call_id){
     /* Projects 2 and later. */
@@ -135,40 +140,44 @@ syscall_handler (struct intr_frame *f)
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
-      exit(ITH_ARG(f, 1, int));
+      exit(ITH_ARG(f, 1, int, false));
       break;
     case SYS_EXEC:                   /* Start another process. */
-      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1));
+      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
-      ret = wait(ITH_ARG(f, 1, int));
+      ret = wait(ITH_ARG(f, 1, int, false));
       break;
     case SYS_CREATE:                 /* Create a file. */
-      ret = create(ITH_ARG_POINTER(f, 1, char *, -1), ITH_ARG(f, 2, unsigned int));
+      ret = create(ITH_ARG_POINTER(f, 1, char *, -1, false), ITH_ARG(f, 2, unsigned int, false));
       break;
     case SYS_REMOVE:                 /* Delete a file. */
-      ret = remove(ITH_ARG_POINTER(f, 1, char *, -1));
+      ret = remove(ITH_ARG_POINTER(f, 1, char *, -1, false));
       break;
     case SYS_OPEN:                   /* Open a file. */
-      ret = open(ITH_ARG_POINTER(f, 1, char *, -1));
+      ret = open(ITH_ARG_POINTER(f, 1, char *, -1, false));
       break;
     case SYS_FILESIZE:               /* Obtain a file's size. */
-      ret = filesize(ITH_ARG(f, 1, int));
+      ret = filesize(ITH_ARG(f, 1, int, false));
       break;
     case SYS_READ:                   /* Read from a file. */
-      ret = read(ITH_ARG(f, 1, int), ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int)), ITH_ARG(f, 3, unsigned int));
+      ret = read(ITH_ARG(f, 1, int, false),
+                 ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false), true),
+                 ITH_ARG(f, 3, unsigned int, false));
       break;
     case SYS_WRITE:                  /* Write to a file. */
-      ret = write(ITH_ARG(f, 1, int), ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int)), ITH_ARG(f, 3, unsigned int));
+      ret = write(ITH_ARG(f, 1, int, false),
+                  ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false), true),
+                  ITH_ARG(f, 3, unsigned int, false));
       break;
     case SYS_SEEK:                   /* Change position in a file. */
-      seek(ITH_ARG(f, 1, int), ITH_ARG(f, 2, unsigned int));
+      seek(ITH_ARG(f, 1, int, false), ITH_ARG(f, 2, unsigned int, false));
       break;
     case SYS_TELL:                   /* Report current position in a file. */
-      ret = tell(ITH_ARG(f, 1, int));
+      ret = tell(ITH_ARG(f, 1, int, false));
       break;
     case SYS_CLOSE:                  /* Close a file. */
-      close(ITH_ARG(f, 1, int));
+      close(ITH_ARG(f, 1, int, false));
       break;
     default:
       exit(-1);
@@ -193,7 +202,7 @@ void exit (int status){
 }
 /* Halt the operating system. */
 static void halt(){
-	shutdown_power_off();
+  shutdown_power_off();
 }
 /* Start another process. */
 static tid_t exec (const char * cmd_line ){
@@ -218,7 +227,7 @@ static int open (const char *file_name){
 }
 /* Wait for a child process to die. */
 static int wait (int pid){
-   return process_wait(pid);
+  return process_wait(pid);
 }
 /* Create a file. */
 static bool create (const char * file , unsigned initial_size ){

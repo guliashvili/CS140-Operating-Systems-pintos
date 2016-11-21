@@ -131,7 +131,6 @@ void supp_pagedir_destroy(struct supp_page_table *table, uint32_t *pd) {
 
       for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
         if (*pte & PTE_P) {
-          void *pd_page = pte_get_page(*pte);
           struct supp_page_tabl2 *v2 = table->entries[pde - pd];
           ASSERT(v2);
           struct supp_pagedir_entry **e = &v2->entries[pte - pt];

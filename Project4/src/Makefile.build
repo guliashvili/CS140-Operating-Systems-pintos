@@ -61,9 +61,10 @@ userprog_SRC += userprog/syscall.c	# System call handler.
 userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
 
+#TODO GIO MUST gadaakete vm_SRC ad
 # No virtual memory code yet.
 vm_SRC = vm/frame.c			# frame
-userprog_SRC += vm/paging.c
+vm_SRC += vm/paging.c
 
 # Filesystem code.
 filesys_SRC  = filesys/filesys.c	# Filesystem core.
