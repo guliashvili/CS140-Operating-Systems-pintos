@@ -24,11 +24,11 @@ struct supp_pagedir_entry{
 };
 
 struct supp_page_tabl2{
-    struct supp_pagedir_entry *entries[1<<PDBITS];
+    struct supp_pagedir_entry *entries[1<<PTBITS];
 };
 
 struct supp_page_table{
-    struct supp_page_tabl2 *entries[1<<PTBITS];
+    struct supp_page_tabl2 *entries[1<<PDBITS];
 };
 
 struct supp_page_table* init_supp_pagedir(void);

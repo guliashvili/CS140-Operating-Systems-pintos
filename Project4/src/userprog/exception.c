@@ -166,6 +166,11 @@ page_fault (struct intr_frame *f)
 //          user ? "user" : "kernel");
   if(is_kernel_vaddr(fault_addr)) exit(-1);
   struct thread *t = thread_current();
+  if(t->pagedir == NULL) {
+    char s[100];
+    snprintf(s, 100, "someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
+    PANIC(s);
+  }
   if(!paging_pagedir_exists(t->pagedir, fault_addr)){
     if(paging_supp_pagedir_exists(t->supp_pagedir, fault_addr)){
 //      char s[30];

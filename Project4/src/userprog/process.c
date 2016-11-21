@@ -494,8 +494,9 @@ setup_stack(const char *res, char **ep, char **strtok_data)
     {
 
         *ep = PHYS_BASE;
-        
-        int i;
+        //virtually_create_page(thread_current()->supp_pagedir, upage - PGSIZE - PGSIZE, true, PAL_USER | PAL_ZERO, NULL);
+
+      int i;
         for(i = 0; res != NULL; i++, res = strtok_r(NULL, " ", strtok_data)){
           int r_le = strlen(res) + 1;
           *ep -= r_le;
