@@ -86,42 +86,6 @@ syscall_init (void) {
   lock_init(&fileSystem);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
-static const char*getname(int sys_call_id);
-static const char*getname(int sys_call_id){
-  switch (sys_call_id){
-    /* Projects 2 and later. */
-    case SYS_HALT:                   /* Halt the operating system. */
-      return "HALT";
-    case SYS_EXIT:                   /* Terminate this process. */
-      return "EXIT";
-    case SYS_EXEC:                   /* Start another process. */
-      return "EXEC";
-    case SYS_WAIT:                   /* Wait for a child process to die. */
-      return "WAIT";
-    case SYS_CREATE:                 /* Create a file. */
-      return "CREATE";
-    case SYS_REMOVE:                 /* Delete a file. */
-      return "REMOVE";
-    case SYS_OPEN:                   /* Open a file. */
-      return "OPEN";
-    case SYS_FILESIZE:               /* Obtain a file's size. */
-      return "FILESIZE";
-    case SYS_READ:                   /* Read from a file. */
-      return "READ";
-    case SYS_WRITE:                  /* Write to a file. */
-      return "WRITE";
-    case SYS_SEEK:                   /* Change position in a file. */
-      return "SEEK";
-    case SYS_TELL:                   /* Report current position in a file. */
-      return "TELL";
-    case SYS_CLOSE:                  /* Close a file. */
-      return "CLOSE";
-    default:
-      return "NONE WTF";
-
-  }
-}
-
 static void
 syscall_handler (struct intr_frame *f)
 {

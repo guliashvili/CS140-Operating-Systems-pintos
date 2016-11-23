@@ -10,6 +10,13 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "vm/frame.h"
+#include "vm/paging.h"
+#include "../vm/paging.h"
+#include "../vm/frame.h"
+#include "palloc.h"
+#include "../lib/debug.h"
+#include "vaddr.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -59,6 +66,16 @@ palloc_init (size_t user_page_limit)
   init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool");
   init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
              user_pages, "user pool");
+  supp_pagedir_init();
+}
+
+uint32_t palloc_page_to_idx(enum palloc_flags flags, void *page){
+  if(page == NULL) return UINT32_MAX;
+  struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+  ASSERT(pool != &user_pool || (flags & PAL_THROUGH_FRAME));
+  uint32_t ret = (uint32_t)page - (uint32_t)pool->base;
+  ASSERT(ret % PGSIZE == 0);
+  return ret / PGSIZE;
 }
 
 /* Obtains and returns a group of PAGE_CNT contiguous free pages.
@@ -71,6 +88,8 @@ void *
 palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 {
   struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+  ASSERT(pool != &user_pool || (flags & PAL_THROUGH_FRAME));
+
   void *pages;
   size_t page_idx;
 
@@ -81,11 +100,13 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
   page_idx = bitmap_scan_and_flip (pool->used_map, 0, page_cnt, false);
   lock_release (&pool->lock);
 
-  if (page_idx != BITMAP_ERROR)
+  if (page_idx != BITMAP_ERROR) {
     pages = pool->base + PGSIZE * page_idx;
-  else
+    ASSERT(palloc_page_to_idx(flags, pages) == page_idx);
+  } else {
     pages = NULL;
-
+    ASSERT(palloc_page_to_idx(flags, pages) == UINT32_MAX);
+  }
   if (pages != NULL) 
     {
       if (flags & PAL_ZERO)
@@ -110,6 +131,7 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 void *
 palloc_get_page (enum palloc_flags flags) 
 {
+  ASSERT(!(flags & PAL_USER) || (flags & PAL_THROUGH_FRAME));
   return palloc_get_multiple (flags, 1);
 }
 
@@ -166,6 +188,7 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   /* Initialize the pool. */
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
+  if(p == &user_pool) frame_map_init(page_cnt);
   p->base = base + bm_pages * PGSIZE;
 }
 

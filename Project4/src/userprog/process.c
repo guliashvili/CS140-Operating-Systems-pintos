@@ -18,6 +18,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/paging.h"
 #include "../threads/synch.h"
 #include "../threads/flags.h"
 #include "../threads/thread.h"
@@ -25,6 +26,9 @@
 #include "../lib/kernel/list.h"
 #include "../filesys/filesys.h"
 #include "pagedir.h"
+#include "../vm/paging.h"
+#include "../threads/palloc.h"
+#include "../vm/frame.h"
 
 static thread_func start_process NO_RETURN;
 bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);
@@ -267,6 +271,10 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
+
+  t->supp_pagedir = supp_pagedir_init();
+  if(t->supp_pagedir == NULL)
+    goto done;
   process_activate ();
 
   /* Open executable file. */
@@ -367,10 +375,6 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
 
   return success;
 }
-
-/* load() helpers. */
-
-static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -449,24 +453,16 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
-        return false;
+      supp_pagedir_virtual_create(upage, PAL_USER);
+      supp_pagedir_really_create(upage);
 
       /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      if (file_read (file, upage, page_read_bytes) != (int) page_read_bytes)
         {
-          palloc_free_page (kpage);
+          frame_free_page (upage);
           return false; 
         }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
+      memset (upage + page_read_bytes, 0, page_zero_bytes);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -479,75 +475,48 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack(const char *res, char **ep, char **strtok_data)
-{
-  uint8_t *kpage;
-  bool success = false;
+setup_stack(const char *res, char **ep, char **strtok_data) {
+  uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
+  supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO);
+  supp_pagedir_really_create(upage);
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success) {
-        *ep = PHYS_BASE;
-        
-        int i;
-        for(i = 0; res != NULL; i++, res = strtok_r(NULL, " ", strtok_data)){
-          int r_le = strlen(res) + 1;
-          *ep -= r_le;
-          memcpy(*ep, res, r_le);
-        }
+  *ep = PHYS_BASE;
 
-        char *begin = *ep;
-        for(;((size_t)*ep) % sizeof(void *); *(--(*ep))=0);
+  int i;
+  for (i = 0; res != NULL; i++, res = strtok_r(NULL, " ", strtok_data)) {
+    int r_le = strlen(res) + 1;
+    *ep -= r_le;
+    memcpy(*ep, res, r_le);
+  }
 
-        int argc = i;
+  char *begin = *ep;
+  for (; ((size_t) *ep) % sizeof(void *); *(--(*ep)) = 0);
 
-        {
-          char **s;
-          for (s = *(char ***) ep; i >= 0; i--) {
-            s--;
-            if (i == argc) {
-              *s = 0;
-            } else {
-              *s = begin;
-              begin += strlen(begin) + 1;
-            }
-          }
-        }
-        *ep -= (argc + 1) * sizeof(int*);
+  int argc = i;
 
-
-        *ep -= sizeof(char**);
-        *((char**)*ep) = *ep + sizeof(char**);
-
-        *ep -= sizeof(int);
-        *((int*)*ep) = argc;
-
-        *ep -= sizeof(void**);
-        *((void**)*ep) = NULL;
-      } else
-        palloc_free_page (kpage);
+  {
+    char **s;
+    for (s = *(char ***) ep; i >= 0; i--) {
+      s--;
+      if (i == argc) {
+        *s = 0;
+      } else {
+        *s = begin;
+        begin += strlen(begin) + 1;
+      }
     }
-  return success;
-}
+  }
+  *ep -= (argc + 1) * sizeof(int *);
 
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
 
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  *ep -= sizeof(char **);
+  *((char **) *ep) = *ep + sizeof(char **);
+
+  *ep -= sizeof(int);
+  *((int *) *ep) = argc;
+
+  *ep -= sizeof(void **);
+  *((void **) *ep) = NULL;
+
+  return 1;
 }

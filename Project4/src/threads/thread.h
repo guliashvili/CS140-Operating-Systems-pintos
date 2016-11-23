@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "vm/paging.h"
 #include "synch.h"
 #include "../filesys/file.h"
 
@@ -111,6 +112,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct supp_pagedir *supp_pagedir;
 #endif
 
     /* Owned by thread.c. */
