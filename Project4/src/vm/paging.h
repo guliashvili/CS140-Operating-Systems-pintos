@@ -32,7 +32,8 @@ struct supp_pagedir_entry **supp_pagedir_lookup(struct supp_pagedir *table, cons
 void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag);
 bool supp_pagedir_really_create(void *upage);
 struct supp_pagedir* supp_pagedir_init(void);
-
+void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd);
+void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage);
 
 
 #endif //PROJECT4_PAGING_H

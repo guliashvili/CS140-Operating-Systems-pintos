@@ -57,10 +57,9 @@ void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) 
   return page;
 }
 
-void frame_free_page (void *upage){
+void frame_free_page (void *kpage){
   lock_acquire(&frame_map->lock);
 
-  void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
   uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
   ASSERT(idx != UINT32_MAX);
   struct frame *f = frame_get_frame(idx);

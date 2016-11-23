@@ -16,7 +16,7 @@
 #include "../userprog/pagedir.h"
 
 struct supp_pagedir* supp_pagedir_init(void){
-  struct supp_pagedir * ret = malloc(sizeof(struct supp_pagedir));
+  struct supp_pagedir * ret = calloc(1, sizeof(struct supp_pagedir));
   ASSERT(ret);
   return ret;
 }
@@ -30,7 +30,7 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   struct supp_pagedir2 *pde = table->entries[pd_no(upage)];
   if(pde == NULL){
     if(create) {
-      pde = table->entries[pd_no(upage)] = malloc(sizeof(struct supp_pagedir2));
+      pde = table->entries[pd_no(upage)] = calloc(1, sizeof(struct supp_pagedir2));
       ASSERT(pde);
     }else
       return NULL;
@@ -93,4 +93,38 @@ bool supp_pagedir_really_create(void *upage){
   ASSERT(ret);
   ASSERT(pagedir_get_page(pd, upage) != NULL);
   return ret;
+}
+
+
+void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
+  int i,j;
+  for(i = 0; i < (1<<PDBITS); i++){
+    struct supp_pagedir2 *spd2 = spd->entries[i];
+    if(spd2 == NULL) continue;
+    for(j = 0; j < (1<<PTBITS); j++){
+      struct supp_pagedir_entry *e = spd2->entries[j];
+      if(e == NULL) continue;
+      supp_pagedir_destroy_page(spd, pd, e->upage);
+    }
+    free(spd2);
+  }
+  free(spd);
+}
+
+void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage){
+  void *kpage = pagedir_get_page(pd, upage);
+
+  if(kpage)
+    frame_free_page(kpage);
+
+  struct supp_pagedir_entry **elem = supp_pagedir_lookup(spd, upage, false);
+  pagedir_clear_page(pd, upage);
+
+  if(elem != NULL && *elem != NULL){
+    struct supp_pagedir_entry *el = *elem;
+    free(el);
+    (*elem) = NULL;
+  }else{
+    NOT_REACHED();
+  }
 }

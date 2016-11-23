@@ -21,5 +21,5 @@ struct frame_map{
 
 void frame_map_init(int pages_cnt);
 void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user);
-void frame_free_page (void *upage);
+void frame_free_page (void *kpage);
 #endif //PROJECT4_FRAME_H
