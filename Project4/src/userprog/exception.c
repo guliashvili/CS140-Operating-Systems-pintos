@@ -9,11 +9,6 @@
 #include "../threads/thread.h"
 #include "userprog/syscall.h"
 #include "syscall.h"
-#include "vm/paging.h"
-#include "../vm/paging.h"
-#include "../lib/debug.h"
-#include "../threads/interrupt.h"
-#include "exception.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -118,15 +113,6 @@ kill (struct intr_frame *f)
     }
 }
 
-
-bool stack_resized(uint32_t esp, void *p) {
-  if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
-    virtually_create_page(thread_current()->supp_pagedir, pg_round_down(p), true, PAL_USER | PAL_ZERO, NULL);
-    really_create_page(thread_current()->supp_pagedir, thread_current()->pagedir, pg_round_down(p));
-    return true;
-  }
-  return false;
-}
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -144,7 +130,7 @@ page_fault (struct intr_frame *f)
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
-  void *fault_addr, *fault_before;  /* Fault address. */
+  void *fault_addr;  /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -154,7 +140,6 @@ page_fault (struct intr_frame *f)
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
-  fault_addr = pg_round_down(fault_before = fault_addr);
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -176,27 +161,7 @@ page_fault (struct intr_frame *f)
 //          not_present ? "not present" : "rights violation",
 //          write ? "writing" : "reading",
 //          user ? "user" : "kernel");
-  if(is_kernel_vaddr(fault_before)) exit(-1);
-  if(!is_user_vaddr(fault_before)) exit(-1);
 
-  struct thread *t = thread_current();
-  if(t->pagedir == NULL) {
-    char s[100];
-    snprintf(s, 100, "someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
-    PANIC(s);
-  }
-  if(paging_pagedir_exists(t->pagedir, fault_before)) // page exists in official pagedir if something is wrong, let it be.
-    exit(-1);
-
-
-  if(paging_supp_pagedir_exists(t->supp_pagedir, fault_addr)){
-//      char s[30];
-//      snprintf(s, 29, "ki %d", fault_addr);
-//      PANIC(s);
-      ASSERT(really_create_page(t->supp_pagedir, t->pagedir, fault_addr));
-  }else if(!stack_resized(f->esp, fault_before)){
-    exit(-1);
-  }
-
+  exit(-1);
 }
 

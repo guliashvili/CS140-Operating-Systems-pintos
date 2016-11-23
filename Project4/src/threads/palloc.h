@@ -2,7 +2,6 @@
 #define THREADS_PALLOC_H
 
 #include <stddef.h>
-#include "lib/kernel/list.h"
 
 /* How to allocate pages. */
 enum palloc_flags
@@ -17,6 +16,5 @@ void *palloc_get_page (enum palloc_flags);
 void *palloc_get_multiple (enum palloc_flags, size_t page_cnt);
 void palloc_free_page (void *);
 void palloc_free_multiple (void *, size_t page_cnt);
-void * palloc_get_page_user_smartass(enum palloc_flags flags, struct list_elem *link);
-void palloc_free_page_smartass (void *pages, struct list_elem *link);
+
 #endif /* threads/palloc.h */
