@@ -460,8 +460,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      supp_pagedir_virtual_create(upage, PAL_USER);
-      supp_pagedir_really_create(upage);
+      supp_pagedir_virtual_create(upage, PAL_USER | PAL_READONLY);
 
 
       /* Load this page. */
@@ -487,7 +486,6 @@ static bool
 setup_stack(const char *res, char **ep, char **strtok_data) {
   uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
   supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO);
-  supp_pagedir_really_create(upage);
 
   *ep = PHYS_BASE;
 

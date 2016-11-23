@@ -9,6 +9,12 @@
 #include "../threads/thread.h"
 #include "userprog/syscall.h"
 #include "syscall.h"
+#include "vm/paging.h"
+#include "vm/frame.h"
+#include "../vm/paging.h"
+#include "../vm/frame.h"
+#include "../threads/palloc.h"
+#include "../threads/interrupt.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -112,6 +118,14 @@ kill (struct intr_frame *f)
       thread_exit ();
     }
 }
+bool stack_resized(uint32_t esp, void *p) {
+  if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
+    supp_pagedir_virtual_create(pg_round_down(p), PAL_USER | PAL_ZERO);
+    supp_pagedir_really_create(pg_round_down(p));
+    return true;
+  }
+  return false;
+}
 
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
@@ -162,6 +176,35 @@ page_fault (struct intr_frame *f)
 //          write ? "writing" : "reading",
 //          user ? "user" : "kernel");
 
-  exit(-1);
+  if(!is_user_vaddr(fault_addr))
+    exit(-1);
+  if(is_kernel_vaddr(fault_addr))
+    exit(-1);
+  if(fault_addr == NULL) exit(-1);
+
+  struct thread *t = thread_current();
+  void *fault_page =  pg_round_down(fault_addr);
+  uint32_t *pd = thread_current()->pagedir;
+  struct supp_pagedir *spd = thread_current()->supp_pagedir;
+
+  ASSERT(pagedir_get_page(pd, fault_addr) == pagedir_get_page(pd, fault_page));
+
+
+
+
+  if(t->pagedir == NULL) {
+    PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
+  }
+
+  if(pagedir_get_page(pd, fault_addr))
+    exit(-1);
+
+  void **p = supp_pagedir_lookup(spd, fault_addr, false);
+  if(p == NULL || *p == NULL) {
+    if(!stack_resized(f->esp, fault_addr)) exit(-1);
+    else return;
+  }
+
+  supp_pagedir_really_create(fault_page);
 }
 
