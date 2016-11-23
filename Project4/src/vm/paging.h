@@ -34,6 +34,7 @@ bool supp_pagedir_really_create(void *upage);
 struct supp_pagedir* supp_pagedir_init(void);
 void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd);
 void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage);
-
+void paging_activate(struct supp_pagedir_entry *f);
+void supp_pagedir_set_prohibit(void *upage, bool prohibit);
 
 #endif //PROJECT4_PAGING_H

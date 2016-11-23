@@ -195,16 +195,17 @@ page_fault (struct intr_frame *f)
   if(t->pagedir == NULL) {
     PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
   }
-
   if(pagedir_get_page(pd, fault_addr))
     exit(-1);
 
-  void **p = supp_pagedir_lookup(spd, fault_addr, false);
+  struct supp_pagedir_entry **p = supp_pagedir_lookup(spd, fault_addr, false);
   if(p == NULL || *p == NULL) {
     if(!stack_resized(f->esp, fault_addr)) exit(-1);
     else return;
   }
+  struct supp_pagedir_entry *pp = *p;
 
   supp_pagedir_really_create(fault_page);
+  paging_activate(pp);
 }
 

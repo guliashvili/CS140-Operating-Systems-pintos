@@ -17,6 +17,7 @@
 #include "palloc.h"
 #include "../lib/debug.h"
 #include "vaddr.h"
+#include "../vm/swap.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -67,6 +68,7 @@ palloc_init (size_t user_page_limit)
   init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
              user_pages, "user pool");
   supp_pagedir_init();
+  swap_init();
 }
 
 uint32_t palloc_page_to_idx(enum palloc_flags flags, void *page){

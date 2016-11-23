@@ -14,6 +14,7 @@
 #include "../threads/vaddr.h"
 #include "../threads/thread.h"
 #include "../userprog/pagedir.h"
+#include "swap.h"
 
 struct supp_pagedir* supp_pagedir_init(void){
   struct supp_pagedir * ret = calloc(1, sizeof(struct supp_pagedir));
@@ -43,8 +44,16 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   return &pde->entries[pt_no (upage)];
 }
 
-void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
+void paging_activate(struct supp_pagedir_entry *f){
+  if(f->sector_t != BLOCK_SECTOR_T_ERROR){
+    ASSERT(pg_round_down(f->upage) == f->upage);
+    swap_read(f->sector_t, pagedir_get_page(*f->pagedir, f->upage));
+    f->sector_t = BLOCK_SECTOR_T_ERROR;
+  }
+}
 
+void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
+  ASSERT(pg_round_down(upage) == upage);
   struct supp_pagedir *table = thread_current()->supp_pagedir;
   ASSERT(table);
   ASSERT(upage);
@@ -122,9 +131,25 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
 
   if(elem != NULL && *elem != NULL){
     struct supp_pagedir_entry *el = *elem;
+    if(el->sector_t != BLOCK_SECTOR_T_ERROR)
+      swap_read(el->sector_t, NULL);
     free(el);
     (*elem) = NULL;
   }else{
     NOT_REACHED();
   }
+}
+
+void supp_pagedir_set_prohibit(void *upage, bool prohibit){
+  void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
+  ASSERT(kpage);
+
+  struct supp_pagedir_entry *f = *supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
+  ASSERT(f);
+
+  if(prohibit && !(f->flags & PAL_PROHIBIT_CACHE)) f->flags |= PAL_PROHIBIT_CACHE;
+  else if(!prohibit && (f->flags & PAL_PROHIBIT_CACHE)) f->flags ^= PAL_PROHIBIT_CACHE;
+
+  frame_set_prohibit(kpage, prohibit);
+
 }
