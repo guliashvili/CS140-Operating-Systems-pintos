@@ -11,6 +11,7 @@ void swap_init(void){
   struct block *swap = block_get_role(BLOCK_SWAP);
   ASSERT(PGSIZE % BLOCK_SECTOR_SIZE == 0);
   s_map = malloc(sizeof(struct swap_map));
+  lock_init(&s_map->lock);
   s_map->map = bitmap_create(block_size(swap) * BLOCK_SECTOR_SIZE / PGSIZE);
 }
 
