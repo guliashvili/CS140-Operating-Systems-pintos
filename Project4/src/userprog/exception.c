@@ -121,7 +121,7 @@ kill (struct intr_frame *f)
 bool stack_resized(uint32_t esp, void *p) {
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
     supp_pagedir_virtual_create(pg_round_down(p), PAL_USER | PAL_ZERO);
-    //supp_pagedir_really_create(pg_round_down(p));
+    supp_pagedir_really_create(pg_round_down(p));
     return true;
   }
   return false;
@@ -199,7 +199,6 @@ page_fault (struct intr_frame *f)
   if(p == NULL || *p == NULL) {
     if(!stack_resized(f->esp, fault_addr))
       exit(-1);
-
     else return;
   }
   struct supp_pagedir_entry *pp = *p;
