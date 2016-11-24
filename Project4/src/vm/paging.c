@@ -46,8 +46,8 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 
 void paging_activate(struct supp_pagedir_entry *f){
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
-    ASSERT(pg_round_down(f->upage) == f->upage);
-    swap_read(f->sector_t, pagedir_get_page(*f->pagedir, f->upage));
+    //printf("activating %u\n",f->upage);
+    swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }
 }
@@ -94,6 +94,7 @@ bool supp_pagedir_really_create(void *upage){
   if(elem == NULL || *elem == NULL) PANIC("in suppl pagedir this upage %u should exist", (uint32_t)upage);
 
   struct supp_pagedir_entry * el = *elem;
+  ASSERT(el->upage == upage);
   void *kpage = frame_get_page(el->flags, el);
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pg_ofs (kpage) == 0);
@@ -152,4 +153,8 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
 
   frame_set_prohibit(kpage, prohibit);
 
+}
+
+void supp_pagedir_set_readonly(void *upage, bool readonly){
+  pageir_set_write_access(thread_current()->pagedir, upage, readonly);
 }

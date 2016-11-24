@@ -365,7 +365,6 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
         }
     }
 
-
   /* Set up stack. */
   if (!setup_stack (file_name_strtok, (char**)esp, strtok_data))
     goto done;
@@ -462,16 +461,16 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
       supp_pagedir_virtual_create(upage, PAL_USER | (page_read_bytes?PAL_PROHIBIT_CACHE:0));
 
-
       /* Load this page. */
       if (file_read (file, upage, page_read_bytes) != (int) page_read_bytes)
         {
-          NOT_REACHED();
           supp_pagedir_destroy_page (thread_current()->supp_pagedir, thread_current()->pagedir, upage);
           return false;
         }
       memset (upage + page_read_bytes, 0, page_zero_bytes);
 
+      if(!writable)
+        supp_pagedir_set_readonly(upage, 1);
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;

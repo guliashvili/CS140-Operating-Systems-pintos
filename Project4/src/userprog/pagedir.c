@@ -140,6 +140,26 @@ pagedir_get_page (uint32_t *pd, const void *uaddr)
     return NULL;
 }
 
+void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
+  uint32_t *pte;
+  ASSERT(pd);
+  ASSERT (uaddr);
+  ASSERT (pg_ofs (uaddr) == 0);
+  ASSERT (is_user_vaddr (uaddr));
+
+  pte = lookup_page (pd, uaddr, false);
+  ASSERT(pte);
+  ASSERT(*pte);
+  if (pte != NULL && (*pte & PTE_P) != 0)
+  {
+    if(readonly && ((*pte) & PTE_W)) (*pte) ^= PTE_W;
+    else if(!readonly && !((*pte) & PTE_W)) {
+      (*pte) |= PTE_W;
+    }
+    invalidate_pagedir (pd);
+  }
+}
+
 /* Marks user virtual page UPAGE "not present" in page
    directory PD.  Later accesses to the page will fault.  Other
    bits in the page table entry are preserved.
