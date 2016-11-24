@@ -285,6 +285,7 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   process_activate ();
 
   /* Open executable file. */
+  lock_acquire(&fileSystem);
   file = filesys_open (file_name_strtok);
   if (file == NULL)
     {
@@ -378,6 +379,8 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   /* We arrive here whether the load is successful or not. */
   if(success) find_child_with_tid(thread_current()->parent_thread, thread_current()->tid)->f = file;
   else file_close(file);
+
+  lock_release(&fileSystem);
 
   return success;
 }

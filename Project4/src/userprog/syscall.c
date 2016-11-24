@@ -87,9 +87,6 @@ static int get_arg(struct intr_frame *f, int i, bool grow, bool prohibit){
 
 #define ITH_ARG(f, i, TYPE, grow, prohibit) ((TYPE)(get_arg(f, i, grow, prohibit)))
 
-
-struct lock fileSystem;
-
 void
 syscall_init (void) {
   lock_init(&fileSystem);

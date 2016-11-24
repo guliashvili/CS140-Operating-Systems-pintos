@@ -187,7 +187,6 @@ page_fault (struct intr_frame *f)
   uint32_t *pd = thread_current()->pagedir;
   struct supp_pagedir *spd = thread_current()->supp_pagedir;
 
-  ASSERT(pagedir_get_page(pd, fault_addr) == pagedir_get_page(pd, fault_page));
 
   if(t->pagedir == NULL) {
     PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
