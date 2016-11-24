@@ -33,7 +33,16 @@ static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp
   f->user = user;
   f->prohibit_cache = flags & PAL_PROHIBIT_CACHE;
 }
+static void frame_free_page_no_lock(void *kpage){
+  uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
+  ASSERT(idx != UINT32_MAX);
+  struct frame *f = frame_get_frame(idx);
+  f->MAGIC = -1;
+  f->user = NULL;
 
+  palloc_free_page(kpage);
+
+}
 void frame_map_init(int pages_cnt){
   static int install = 0;
   if(install++ > 1) PANIC("frame is installed more then once");
@@ -47,13 +56,12 @@ void frame_map_init(int pages_cnt){
 }
 
 static void frame_move_random_swap(void){
-  //NOT_REACHED();
   //int i;for(i = 0; i < frame_map->num_of_frames; i++) ASSERT(frame_map->frames[i].MAGIC == FRAME_MAGIC);
   int i;
   struct frame *f;
 
-  for(i = 0; (f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && i < 100; i++);
-  ASSERT(i >= 100);
+  for(i = 0; (f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && (i < 10000); i++);
+  ASSERT(i < 10000);
   void *kpage = pagedir_get_page(*f->user->pagedir, f->user->upage);
   ASSERT(kpage);
   ASSERT(pg_round_down(kpage) == kpage);
@@ -63,10 +71,10 @@ static void frame_move_random_swap(void){
   ASSERT(*f->user->pagedir);
   ASSERT(f->user->upage);
   f->user->sector_t = swap_write(kpage);
-  frame_free_page_no_lock(kpage);
-  pagedir_clear_page(*f->user->pagedir, f->user->upage);
-  //PANIC("ass");
 
+  struct supp_pagedir_entry *user = f->user;
+  frame_free_page_no_lock(kpage);
+  pagedir_clear_page(*user->pagedir, user->upage);
 }
 
 void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) {
@@ -101,16 +109,7 @@ void frame_free_page (void *kpage){
   lock_release(&frame_map->lock);
 }
 
-static void frame_free_page_no_lock(void *kpage){
-  uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
-  ASSERT(idx != UINT32_MAX);
-  struct frame *f = frame_get_frame(idx);
-  f->MAGIC = -1;
-  f->user = NULL;
 
-  palloc_free_page(kpage);
-
-}
 
 void frame_set_prohibit(void *kpage, bool prohibit){
   lock_acquire(&frame_map->lock);

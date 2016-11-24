@@ -1,6 +1,6 @@
 
 # Created by https://www.gitignore.io/api/c,jetbrains
-
+*/cmake-build-debug/*
 ### C ###
 # Prerequisites
 *.d

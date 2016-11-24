@@ -460,7 +460,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      supp_pagedir_virtual_create(upage, PAL_USER | PAL_PROHIBIT_CACHE);
+      supp_pagedir_virtual_create(upage, PAL_USER | (page_read_bytes?PAL_PROHIBIT_CACHE:0));
 
 
       /* Load this page. */
