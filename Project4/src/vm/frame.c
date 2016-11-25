@@ -115,6 +115,8 @@ void frame_set_prohibit(void *kpage, bool prohibit){
   lock_acquire(&frame_map->lock);
   uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
   ASSERT(idx != UINT32_MAX);
-  frame_get_frame(idx)->prohibit_cache = prohibit;
+  struct frame *f = frame_get_frame(idx);
+  ASSERT(f);
+  f->prohibit_cache = prohibit;
   lock_release(&frame_map->lock);
 }

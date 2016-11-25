@@ -152,10 +152,9 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
   ASSERT(*pte);
   if (pte != NULL && (*pte & PTE_P) != 0)
   {
-    if(readonly && ((*pte) & PTE_W)) (*pte) ^= PTE_W;
-    else if(!readonly && !((*pte) & PTE_W)) {
-      (*pte) |= PTE_W;
-    }
+    if(readonly) (*pte) &= ~PTE_W;
+    else (*pte) |= PTE_W;
+
     invalidate_pagedir (pd);
   }
 }

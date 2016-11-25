@@ -45,6 +45,9 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 }
 
 void paging_activate(struct supp_pagedir_entry *f){
+  if(!pagedir_get_page(thread_current()->pagedir, f->upage))
+    supp_pagedir_really_create(f->upage);
+
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
     //printf("activating %u\n",f->upage);
     swap_read(f->sector_t, f->upage);
@@ -87,8 +90,10 @@ bool supp_pagedir_really_create(void *upage){
   ASSERT(pd);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
-  if(pagedir_get_page(pd, upage))
-    PANIC("in pagedir this upage %u should not be present",  (uint32_t)upage);
+  if(pagedir_get_page(pd, upage)){
+    return 1;
+  }
+    //PANIC("in pagedir this upage %u should not be present",  (uint32_t)upage);
 
   struct supp_pagedir_entry ** elem = supp_pagedir_lookup(table, upage, false);
   if(elem == NULL || *elem == NULL) PANIC("in suppl pagedir this upage %u should exist", (uint32_t)upage);
@@ -148,13 +153,28 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
   struct supp_pagedir_entry *f = *supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
   ASSERT(f);
 
-  if(prohibit && !(f->flags & PAL_PROHIBIT_CACHE)) f->flags |= PAL_PROHIBIT_CACHE;
-  else if(!prohibit && (f->flags & PAL_PROHIBIT_CACHE)) f->flags ^= PAL_PROHIBIT_CACHE;
+  if(prohibit) f->flags |= PAL_PROHIBIT_CACHE;
+  else if(!prohibit) f->flags &= ~PAL_PROHIBIT_CACHE;
 
-  frame_set_prohibit(kpage, prohibit);
+  if(prohibit){
+    paging_activate(f);
+  }
 
 }
 
 void supp_pagedir_set_readonly(void *upage, bool readonly){
+  struct supp_pagedir *table = thread_current()->supp_pagedir;
+  uint32_t *pd = thread_current()->pagedir;
+
+  ASSERT(table);
+  ASSERT(pd);
+  ASSERT (pg_ofs (upage) == 0);
+  ASSERT (is_user_vaddr (upage));
+  struct supp_pagedir_entry **elem = supp_pagedir_lookup(table, upage, false);
+  ASSERT(elem);
+  ASSERT(*elem);
+  if(readonly) (*elem)->flags |= PAL_READONLY;
+  else (*elem)->flags &= ~PAL_READONLY;
+
   pageir_set_write_access(thread_current()->pagedir, upage, readonly);
 }

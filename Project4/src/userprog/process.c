@@ -472,8 +472,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         }
       memset (upage + page_read_bytes, 0, page_zero_bytes);
 
-      if(!writable)
-        supp_pagedir_set_readonly(upage, 1);
+      supp_pagedir_set_readonly(upage, !writable);
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;

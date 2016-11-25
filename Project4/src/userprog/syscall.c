@@ -20,6 +20,7 @@
 #include "userprog/exception.h"
 #include "exception.h"
 #include "../vm/paging.h"
+#include "../lib/syscall-nr.h"
 
 static struct user_file_info *find_open_file(int fd);
 static void syscall_handler (struct intr_frame *);
@@ -38,54 +39,57 @@ static int write (int fd, const void *buffer, unsigned length);
 static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
-static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit);
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit);
+static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
 
 static int FD_C = 2;
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit){
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     return 0;
   if(!pagedir_get_page(thread_current()->pagedir, s)){
-    if(grow && (is_user_vaddr(s) && stack_resized(esp, s))) return 1;
-    else
+    if(!(grow && (is_user_vaddr(s) && stack_resized(esp, s)))) {
       return 0;
+    }
   }
   supp_pagedir_set_prohibit(s, prohibit);
   return 1;
 }
-static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit){
-  if(!check_pointer_nonsastik(esp, s, grow, prohibit)) exit(-1);
+static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
+  if(!check_pointer_nonsastik(esp, s, grow, prohibit, name)) {
+    exit(-1);
+  }
 }
 
-static void *get_arg_pointer(struct intr_frame *f, int i, int len, bool grow, bool prohibit){
+static void *get_arg_pointer(struct intr_frame *f, int i, int len, bool grow, bool prohibit, const char *name){
+
   void **p = (((void**)(f)->esp) + (i));
-  check_pointer((uint32_t)f->esp, p, grow, prohibit);
-  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, prohibit);
-  check_pointer((uint32_t)f->esp, *p, grow, prohibit);
+  check_pointer((uint32_t)f->esp, p, grow, false, name);
+  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, false, name);
+  check_pointer((uint32_t)f->esp, *p, grow, false, name);
   //check_pointer((char*)*p + 3);
 
   char *ret = (char*)*p;
-  check_pointer((uint32_t)f->esp, ret, grow, prohibit);
+  check_pointer((uint32_t)f->esp, ret, grow, prohibit, name);
   if(len == -1){
-    for(;*ret;check_pointer((uint32_t)f->esp, ++ret, grow, prohibit));
+    for(;*ret;check_pointer((uint32_t)f->esp, ++ret, grow, prohibit, name));
   }else{
-    check_pointer((uint32_t)f->esp, ret + len, grow, prohibit);
-    for(;len >= 0; len--, check_pointer((uint32_t)f->esp, ret++, grow, prohibit));
+    check_pointer((uint32_t)f->esp, ret + len, grow, prohibit, name);
+    for(;len >= 0; len--, check_pointer((uint32_t)f->esp, ret++, grow, prohibit, name));
   }
-
-  return *p;
+  void *rett = *p;
+  return rett;
 }
-static int get_arg(struct intr_frame *f, int i, bool grow, bool prohibit){
+static int get_arg(struct intr_frame *f, int i, bool grow, bool prohibit, const char *name){
   int *p = (((int*)(f)->esp) + (i));
-  check_pointer((uint32_t)f->esp, p, grow, prohibit);
-  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, prohibit);
+  check_pointer((uint32_t)f->esp, p, grow, prohibit, name);
+  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, prohibit, name);
 
   return *p;
 }
 
-#define ITH_ARG_POINTER(f, i, TYPE, len, grow, prohibit) ((TYPE)get_arg_pointer(f, i, len, grow, prohibit))
+#define ITH_ARG_POINTER(f, i, TYPE, len, grow, prohibit, NAME) ((TYPE)get_arg_pointer(f, i, len, grow, prohibit, NAME))
 
-#define ITH_ARG(f, i, TYPE, grow, prohibit) ((TYPE)(get_arg(f, i, grow, prohibit)))
+#define ITH_ARG(f, i, TYPE, grow, prohibit, NAME) ((TYPE)(get_arg(f, i, grow, prohibit, NAME)))
 
 void
 syscall_init (void) {
@@ -96,7 +100,7 @@ syscall_init (void) {
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int sys_call_id = ITH_ARG(f, 0, int, false, true);
+  int sys_call_id = ITH_ARG(f, 0, int, false, true, "sys_call_id");
   uint32_t ret = 23464464;
   switch (sys_call_id){
     /* Projects 2 and later. */
@@ -104,67 +108,71 @@ syscall_handler (struct intr_frame *f)
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
-      exit(ITH_ARG(f, 1, int, false, true));
-      ITH_ARG(f, 1, int, false, false);
+      exit(ITH_ARG(f, 1, int, false, true, "EXIT1"));
+      ITH_ARG(f, 1, int, false, false, "EXIT1*");
       break;
     case SYS_EXEC:                   /* Start another process. */
-      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, true));
-      ITH_ARG_POINTER(f, 1, const char *, -1, false, false);
+      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, true, "EXEC1"));
+      ITH_ARG_POINTER(f, 1, const char *, -1, false, false, "EXEC1*");
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
-      ret = wait(ITH_ARG(f, 1, int, false, true));
-      ITH_ARG(f, 1, int, false, false);
+      ret = wait(ITH_ARG(f, 1, int, false, true,"WAIT1"));
+      ITH_ARG(f, 1, int, false, false, "WAIT1*");
       break;
     case SYS_CREATE:                 /* Create a file. */
-      ret = create(ITH_ARG_POINTER(f, 1, char *, -1, false, true), ITH_ARG(f, 2, unsigned int, false, true));
-      ITH_ARG_POINTER(f, 1, char *, -1, false, false);
-      ITH_ARG(f, 2, unsigned int, false, false);
+      ret = create(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "CREATE1"),
+                   ITH_ARG(f, 2, unsigned int, false, true, "CREATE2"));
+      ITH_ARG_POINTER(f, 1, char *, -1, false, false, "CREATE1*");
+      ITH_ARG(f, 2, unsigned int, false, false, "CREATE2*");
       break;
     case SYS_REMOVE:                 /* Delete a file. */
-      ret = remove(ITH_ARG_POINTER(f, 1, char *, -1, false, true));
-      ITH_ARG_POINTER(f, 1, char *, -1, false, false);
+      ret = remove(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "REMOVE1"));
+      ITH_ARG_POINTER(f, 1, char *, -1, false, false, "REMOVE1*");
       break;
     case SYS_OPEN:                   /* Open a file. */
-      ret = open(ITH_ARG_POINTER(f, 1, char *, -1, false, true));
-      ITH_ARG_POINTER(f, 1, char *, -1, false, false);
+      ret = open(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"));
+      ITH_ARG_POINTER(f, 1, char *, -1, false, false, "OPEN1*");
       break;
     case SYS_FILESIZE:               /* Obtain a file's size. */
-      ret = filesize(ITH_ARG(f, 1, int, false, true));
-      ITH_ARG(f, 1, int, false, false);
+      ret = filesize(ITH_ARG(f, 1, int, false, true, "FILESIZE1"));
+      ITH_ARG(f, 1, int, false, false, "FILESIZE1*");
       break;
     case SYS_READ:                   /* Read from a file. */
-      ret = read(ITH_ARG(f, 1, int, false, true),
-                 ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true), true, true),
-                 ITH_ARG(f, 3, unsigned int, false, true));
-      ITH_ARG(f, 1, int, false, false);
-      ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true), false, false);
-      ITH_ARG(f, 3, unsigned int, false, false);
+      ret = read(ITH_ARG(f, 1, int, false, true,"READ1"),
+                 ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true,"READ33"), true, true,"READ2"),
+                 ITH_ARG(f, 3, unsigned int, false, true, "READ3"));
+      ITH_ARG(f, 1, int, false, false, "READ1*");
+      ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true,"READ33*"), false, false,"READ2*");
+      ITH_ARG(f, 3, unsigned int, false, false, "READ3");
       break;
     case SYS_WRITE:                  /* Write to a file. */
-      ret = write(ITH_ARG(f, 1, int, false, true),
-                  ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true), true, true),
-                  ITH_ARG(f, 3, unsigned int, false, true));
-      ITH_ARG(f, 1, int, false, false);
-      ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true), false, false);
-      ITH_ARG(f, 3, unsigned int, false, false);
+      ret = write(ITH_ARG(f, 1, int, false, true,"WRITE1"),
+                  ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true,"WRITE33"), true, true,"WRITE2"),
+                  ITH_ARG(f, 3, unsigned int, false, true,"WRITE3"));
+
+      ITH_ARG(f, 1, int, false, false, "WRITE1*");
+      ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true,"WRITE33*"), false, false,"WRITE2*");
+      ITH_ARG(f, 3, unsigned int, false, false, "WRITE3*");
+
       break;
     case SYS_SEEK:                   /* Change position in a file. */
-      seek(ITH_ARG(f, 1, int, false, true), ITH_ARG(f, 2, unsigned int, false, true));
-      ITH_ARG(f, 1, int, false, false);
-      ITH_ARG(f, 2, unsigned int, false, false);
+      seek(ITH_ARG(f, 1, int, false, true,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, true,"SEEK2"));
+      ITH_ARG(f, 1, int, false, false,"SEEK1*");
+      ITH_ARG(f, 2, unsigned int, false, false,"SEEK2*");
       break;
     case SYS_TELL:                   /* Report current position in a file. */
-      ret = tell(ITH_ARG(f, 1, int, false, true));
-      ITH_ARG(f, 1, int, false, false);
+      ret = tell(ITH_ARG(f, 1, int, false, true,"TELL1"));
+      ITH_ARG(f, 1, int, false, false,"TELL1*");
       break;
     case SYS_CLOSE:                  /* Close a file. */
-      close(ITH_ARG(f, 1, int, false, true));
-      ITH_ARG(f, 1, int, false, false);
+
+      close(ITH_ARG(f, 1, int, false, true, "close1"));
+      ITH_ARG(f, 1, int, false, false, "close1*");
       break;
     default:
       exit(-1);
   }
-  ITH_ARG(f, 0, int, false, false);
+  ITH_ARG(f, 0, int, false, false, "sys_call_id*");
   if(ret != 23464464){
     f->eax = ret;
   }

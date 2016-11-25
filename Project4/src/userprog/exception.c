@@ -119,8 +119,13 @@ kill (struct intr_frame *f)
     }
 }
 bool stack_resized(uint32_t esp, void *p) {
+  ASSERT(!pagedir_get_page(thread_current()->pagedir, p));
+
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
     supp_pagedir_virtual_create(pg_round_down(p), PAL_USER | PAL_ZERO);
+  }
+  void **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
+  if(d && *d){
     supp_pagedir_really_create(pg_round_down(p));
     return true;
   }
@@ -201,7 +206,7 @@ page_fault (struct intr_frame *f)
     else return;
   }
   struct supp_pagedir_entry *pp = *p;
-  supp_pagedir_really_create(fault_page);
+
   paging_activate(pp);
 }
 
