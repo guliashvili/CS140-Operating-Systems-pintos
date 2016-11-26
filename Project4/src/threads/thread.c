@@ -344,10 +344,8 @@ thread_exit (void)
     }
   }
   lock_release(&t->child_list_lock);
-
   t = thread_current();
   t->status = THREAD_DYING;
-
   schedule ();
   NOT_REACHED ();
 }

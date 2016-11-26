@@ -16,12 +16,26 @@
 #include "../userprog/pagedir.h"
 #include "swap.h"
 
+
+static bool supp_pagedir_really_create(void *upage);
+
+/**
+ * init supp pagedir internal structures
+ * @return pointer to the supp pagedir struct
+ */
 struct supp_pagedir* supp_pagedir_init(void){
   struct supp_pagedir * ret = calloc(1, sizeof(struct supp_pagedir));
   ASSERT(ret);
   return ret;
 }
 
+/**
+ * Looks up for the mapping from upage to supp pagedir entry.
+ * @param table  supp pagedir
+ * @param upage
+ * @param create should create if not exists
+ * @return pointer to the pointer(of the entry).
+ */
 struct supp_pagedir_entry **
 supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 {
@@ -44,7 +58,20 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   return &pde->entries[pt_no (upage)];
 }
 
-void paging_activate(struct supp_pagedir_entry *f){
+/**
+ * Makes page real. If it's not mapped to the palloc, mapps it to one. Also reocvers data if any.
+ * @param f
+ */
+void paging_activate(void *upage){
+  ASSERT(upage);
+  struct supp_pagedir_entry **ff = supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
+  ASSERT(ff);
+  ASSERT(*ff);
+
+  struct supp_pagedir_entry *f = *ff;
+  ASSERT(f);
+  ASSERT(f->upage);
+
   if(!pagedir_get_page(thread_current()->pagedir, f->upage))
     supp_pagedir_really_create(f->upage);
 
@@ -55,6 +82,11 @@ void paging_activate(struct supp_pagedir_entry *f){
   }
 }
 
+/**
+ * initializes upage in supplemental page table, but does not acquire any frame.
+ * @param upage virtual user address
+ * @param flag flags
+ */
 void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
   ASSERT(pg_round_down(upage) == upage);
   struct supp_pagedir *table = thread_current()->supp_pagedir;
@@ -82,7 +114,13 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
 
 }
 
-bool supp_pagedir_really_create(void *upage){
+/**
+ * acquires frame for given user virtual adddres upage.
+ * mapping should not exist in pagedir(if it does then frame is already linked to it)
+ * @param upage
+ * @return
+ */
+static bool supp_pagedir_really_create(void *upage){
   struct supp_pagedir *table = thread_current()->supp_pagedir;
   uint32_t *pd = thread_current()->pagedir;
 
@@ -90,10 +128,8 @@ bool supp_pagedir_really_create(void *upage){
   ASSERT(pd);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
-  if(pagedir_get_page(pd, upage)){
-    return 1;
-  }
-    //PANIC("in pagedir this upage %u should not be present",  (uint32_t)upage);
+  if(pagedir_get_page(pd, upage))
+    PANIC("in pagedir this upage %u should not be present",  (uint32_t)upage);
 
   struct supp_pagedir_entry ** elem = supp_pagedir_lookup(table, upage, false);
   if(elem == NULL || *elem == NULL) PANIC("in suppl pagedir this upage %u should exist", (uint32_t)upage);
@@ -101,6 +137,7 @@ bool supp_pagedir_really_create(void *upage){
   struct supp_pagedir_entry * el = *elem;
   ASSERT(el->upage == upage);
   void *kpage = frame_get_page(el->flags, el);
+
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pg_ofs (kpage) == 0);
 
@@ -147,34 +184,24 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
 }
 
 void supp_pagedir_set_prohibit(void *upage, bool prohibit){
-  void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
-  ASSERT(kpage);
-
+  ASSERT(upage);
   struct supp_pagedir_entry *f = *supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
   ASSERT(f);
 
   if(prohibit) f->flags |= PAL_PROHIBIT_CACHE;
   else if(!prohibit) f->flags &= ~PAL_PROHIBIT_CACHE;
 
-  if(prohibit){
-    paging_activate(f);
+  lock_acquire(frame_get_lock());
+  void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
+  if(kpage) frame_set_prohibit(kpage, prohibit);
+  lock_release(frame_get_lock());
+
+  if(kpage == NULL){
+    paging_activate(upage);
+    kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
+  ASSERT(kpage);
 
-}
 
-void supp_pagedir_set_readonly(void *upage, bool readonly){
-  struct supp_pagedir *table = thread_current()->supp_pagedir;
-  uint32_t *pd = thread_current()->pagedir;
 
-  ASSERT(table);
-  ASSERT(pd);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (is_user_vaddr (upage));
-  struct supp_pagedir_entry **elem = supp_pagedir_lookup(table, upage, false);
-  ASSERT(elem);
-  ASSERT(*elem);
-  if(readonly) (*elem)->flags |= PAL_READONLY;
-  else (*elem)->flags &= ~PAL_READONLY;
-
-  pageir_set_write_access(thread_current()->pagedir, upage, readonly);
 }

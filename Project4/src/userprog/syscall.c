@@ -52,6 +52,8 @@ static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohi
     }
   }
   supp_pagedir_set_prohibit(s, prohibit);
+  if(prohibit)
+    ASSERT(pagedir_get_page(thread_current()->pagedir, s));
   return 1;
 }
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
@@ -130,6 +132,7 @@ syscall_handler (struct intr_frame *f)
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "REMOVE1*");
       break;
     case SYS_OPEN:                   /* Open a file. */
+
       ret = open(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "OPEN1*");
       break;
@@ -165,7 +168,6 @@ syscall_handler (struct intr_frame *f)
       ITH_ARG(f, 1, int, false, false,"TELL1*");
       break;
     case SYS_CLOSE:                  /* Close a file. */
-
       close(ITH_ARG(f, 1, int, false, true, "close1"));
       ITH_ARG(f, 1, int, false, false, "close1*");
       break;

@@ -21,7 +21,7 @@ block_sector_t swap_write(void *vaddr){
   ASSERT(vaddr);
   ASSERT(is_kernel_vaddr(vaddr));
 
-  lock_acquire(&s_map->lock);
+  lock_acquire2(&s_map->lock);
 
   size_t t = bitmap_scan_and_flip(s_map->map, 0, 1, 0);
   if(t == BITMAP_ERROR) {
@@ -50,7 +50,7 @@ void swap_read(block_sector_t t, void *vaddr){
   ASSERT(vaddr == NULL || is_user_vaddr(vaddr));
 
   ASSERT(t % NUM_OF_HARD_DISK_SEGMENT == 0);
-  lock_acquire(&s_map->lock);
+  lock_acquire2(&s_map->lock);
   ASSERT(bitmap_all(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 1));
   bitmap_set(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 0);
 

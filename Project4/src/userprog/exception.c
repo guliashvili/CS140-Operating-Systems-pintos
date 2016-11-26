@@ -126,7 +126,7 @@ bool stack_resized(uint32_t esp, void *p) {
   }
   void **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
   if(d && *d){
-    supp_pagedir_really_create(pg_round_down(p));
+    paging_activate(pg_round_down(p));
     return true;
   }
   return false;
@@ -205,8 +205,7 @@ page_fault (struct intr_frame *f)
       exit(-1);
     else return;
   }
-  struct supp_pagedir_entry *pp = *p;
 
-  paging_activate(pp);
+  paging_activate(spd);
 }
 

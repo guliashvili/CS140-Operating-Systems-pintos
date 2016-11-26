@@ -18,9 +18,9 @@ struct frame_map{
     struct frame *frames;
 };
 
-
+struct lock *frame_get_lock();
 void frame_map_init(int pages_cnt);
 void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user);
-void frame_free_page (void *upage);
+void frame_free_page (void *kpage);
 void frame_set_prohibit(void *kpage, bool prohibit);
 #endif //PROJECT4_FRAME_H

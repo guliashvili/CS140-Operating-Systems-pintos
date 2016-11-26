@@ -57,11 +57,11 @@ void frame_map_init(int pages_cnt){
 
 static void frame_move_random_swap(void){
   //int i;for(i = 0; i < frame_map->num_of_frames; i++) ASSERT(frame_map->frames[i].MAGIC == FRAME_MAGIC);
-  int i;
   struct frame *f;
 
-  for(i = 0; (f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && (i < 10000); i++);
-  ASSERT(i < 10000);
+  int i;
+  for(i = 0;(f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && i < 1000; i++);
+  ASSERT(i < 1000);
   void *kpage = pagedir_get_page(*f->user->pagedir, f->user->upage);
   ASSERT(kpage);
   ASSERT(pg_round_down(kpage) == kpage);
@@ -112,11 +112,14 @@ void frame_free_page (void *kpage){
 
 
 void frame_set_prohibit(void *kpage, bool prohibit){
-  lock_acquire(&frame_map->lock);
+  ASSERT(frame_map->lock.holder == thread_current());
   uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
   ASSERT(idx != UINT32_MAX);
   struct frame *f = frame_get_frame(idx);
   ASSERT(f);
   f->prohibit_cache = prohibit;
-  lock_release(&frame_map->lock);
+}
+
+struct lock *frame_get_lock(){
+  return &frame_map->lock;
 }

@@ -381,7 +381,6 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   else file_close(file);
 
   lock_release(&fileSystem);
-
   return success;
 }
 
@@ -462,17 +461,20 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      supp_pagedir_virtual_create(upage, PAL_USER | (page_read_bytes?PAL_PROHIBIT_CACHE:0));
+      supp_pagedir_virtual_create(upage, PAL_USER | PAL_PROHIBIT_CACHE | (writable?0:PAL_READONLY));
+      paging_activate(upage);
+      void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
+      ASSERT(kpage);
 
       /* Load this page. */
-      if (file_read (file, upage, page_read_bytes) != (int) page_read_bytes)
+      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           supp_pagedir_destroy_page (thread_current()->supp_pagedir, thread_current()->pagedir, upage);
           return false;
         }
-      memset (upage + page_read_bytes, 0, page_zero_bytes);
+      memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-      supp_pagedir_set_readonly(upage, !writable);
+      supp_pagedir_set_prohibit(upage, 0);
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
@@ -487,6 +489,7 @@ static bool
 setup_stack(const char *res, char **ep, char **strtok_data) {
   uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
   supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO | PAL_PROHIBIT_CACHE);
+  paging_activate(upage);
 
   *ep = PHYS_BASE;
 
@@ -525,6 +528,8 @@ setup_stack(const char *res, char **ep, char **strtok_data) {
 
   *ep -= sizeof(void **);
   *((void **) *ep) = NULL;
+
+  supp_pagedir_set_prohibit(upage, 0);
 
   return 1;
 }
