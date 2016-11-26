@@ -81,7 +81,25 @@ void paging_activate(void *upage){
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }
 }
+void paging_activate2(void *upage){
+  ASSERT(upage);
+  struct supp_pagedir_entry **ff = supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
+  ASSERT(ff);
+  ASSERT(*ff);
 
+  struct supp_pagedir_entry *f = *ff;
+  ASSERT(f);
+  ASSERT(f->upage);
+
+  if(!pagedir_get_page(thread_current()->pagedir, f->upage))
+    supp_pagedir_really_create(f->upage);
+
+  if(f->sector_t != BLOCK_SECTOR_T_ERROR){
+    //printf("activating %u\n",f->upage);
+    swap_read(f->sector_t, f->upage);
+    f->sector_t = BLOCK_SECTOR_T_ERROR;
+  }
+}
 /**
  * initializes upage in supplemental page table, but does not acquire any frame.
  * @param upage virtual user address

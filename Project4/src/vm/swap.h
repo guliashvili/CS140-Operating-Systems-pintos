@@ -14,6 +14,6 @@ struct swap_map{
 
 void swap_init(void);
 void swap_read(block_sector_t t, void *vaddr);
-block_sector_t swap_write(void *vaddr);
+block_sector_t swap_write(void *kpage);
 
 #endif //PROJECT4_SWAP_H
