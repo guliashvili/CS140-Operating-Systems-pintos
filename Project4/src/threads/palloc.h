@@ -10,9 +10,9 @@ enum palloc_flags
     PAL_ASSERT = 1,           /* Panic on failure. */
     PAL_ZERO = 2,             /* Zero page contents. */
     PAL_USER = 4,              /* User page. */
-    PAL_READONLY = 8,
-    PAL_THROUGH_FRAME = 16,
-    PAL_PROHIBIT_CACHE = 32
+    PAL_READONLY = 8,         /* User can only read */
+    PAL_THROUGH_FRAME = 16,    /* palloc can not directly be used for user pool  and only frame sets this flag */
+    PAL_PROHIBIT_CACHE = 32   /* frame should not be sent to the swap */
 };
 uint32_t palloc_page_to_idx(enum palloc_flags flags, void *page);
 void palloc_init (size_t user_page_limit);

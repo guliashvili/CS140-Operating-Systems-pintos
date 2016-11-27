@@ -287,15 +287,21 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   /* Open executable file. */
   lock_acquire(&fileSystem);
   file = filesys_open (file_name_strtok);
+  lock_release(&fileSystem);
+
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name_strtok);
       goto done;
     }
+  lock_acquire(&fileSystem);
   file_deny_write(file);
+  int file_read_ret = file_read (file, &ehdr, sizeof ehdr);
+  lock_release(&fileSystem);
 
   /* Read and verify executable header. */
-  if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
+
+  if (file_read_ret != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
       || ehdr.e_machine != 3
@@ -313,11 +319,21 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
     {
       struct Elf32_Phdr phdr;
 
-      if (file_ofs < 0 || file_ofs > file_length (file))
-        goto done;
-      file_seek (file, file_ofs);
+      lock_acquire(&fileSystem);
+      int length = file_length(file);
+      lock_release(&fileSystem);
 
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+      if (file_ofs < 0 || file_ofs > length)
+        goto done;
+
+      lock_acquire(&fileSystem);
+
+      file_seek (file, file_ofs);
+      int file_read_ret = file_read (file, &phdr, sizeof phdr);
+
+      lock_release(&fileSystem);
+
+      if (file_read_ret != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
       switch (phdr.p_type)
@@ -378,9 +394,12 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
  done:
   /* We arrive here whether the load is successful or not. */
   if(success) find_child_with_tid(thread_current()->parent_thread, thread_current()->tid)->f = file;
-  else file_close(file);
+  else{
+    lock_acquire(&fileSystem);
+    file_close(file);
+    lock_release(&fileSystem);
+  }
 
-  lock_release(&fileSystem);
   return success;
 }
 
@@ -394,7 +413,10 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false;
 
   /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off) file_length (file))
+  lock_acquire(&fileSystem);
+  int length = file_length (file);
+  lock_release(&fileSystem);
+  if (phdr->p_offset > (Elf32_Off) length)
     return false;
 
   /* p_memsz must be at least as big as p_filesz. */
@@ -451,7 +473,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  lock_acquire(&fileSystem);
   file_seek (file, ofs);
+  lock_release(&fileSystem);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -467,7 +491,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       ASSERT(kpage);
 
       /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      lock_acquire(&fileSystem);
+      int file_read_ret = file_read (file, kpage, page_read_bytes);
+      lock_release(&fileSystem);
+
+      if (file_read_ret != (int) page_read_bytes)
         {
           supp_pagedir_destroy_page (thread_current()->supp_pagedir, thread_current()->pagedir, upage);
           return false;
