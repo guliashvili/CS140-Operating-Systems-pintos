@@ -92,7 +92,7 @@ static void frame_move_random_swap(void){
   ASSERT(f->user->upage);
 
   if(f->user->fd != -1){
-    discard_file(f->user);
+    discard_file(thread_current()->pagedir, f->user);
   }else {
     f->user->sector_t = swap_write(kpage);
   }

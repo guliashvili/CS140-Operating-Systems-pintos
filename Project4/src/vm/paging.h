@@ -33,8 +33,8 @@ struct supp_pagedir{
     struct supp_pagedir2 *entries[1<<PDBITS];
 };
 
-void discard_file(struct supp_pagedir_entry *e);
-struct supp_pagedir_entry **supp_pagedir_lookup(struct supp_pagedir *table, const void *vaddr, bool create);
+void discard_file(uint32_t *pagedir, struct supp_pagedir_entry *e);
+struct supp_pagedir_entry **supp_pagedir_lookup(struct supp_pagedir *table, const void *vaddfr, bool create);
 void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag);
 struct supp_pagedir* supp_pagedir_init(void);
 void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd);

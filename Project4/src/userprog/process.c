@@ -29,6 +29,7 @@
 #include "../vm/paging.h"
 #include "../threads/palloc.h"
 #include "../vm/frame.h"
+#include "threads/thread.h"
 
 static thread_func start_process NO_RETURN;
 bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);

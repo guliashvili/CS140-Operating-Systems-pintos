@@ -304,7 +304,6 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
-
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
@@ -312,6 +311,13 @@ thread_exit (void)
   struct thread *t = thread_current();
   list_remove (&t->allelem);
   struct list_elem *e;
+
+  for (e = list_begin (&t->mmap_address); e != list_end (&t->mmap_address);)
+  {
+    struct mmap_info *mc = list_entry (e, struct mmap_info, link);
+    e = list_next (e);
+    free(mc);
+  }
 
   //Remove(close files and free struct) information about children(if any).
   lock_acquire(&t->child_list_lock);
@@ -473,6 +479,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   list_init(&t->open_files);
   list_init(&t->child_list);
+  list_init(&t->mmap_address);
   lock_init(&t->child_list_lock);
   t->parent_thread = NULL;
 

@@ -7,6 +7,7 @@
 #include "vm/paging.h"
 #include "synch.h"
 #include "../filesys/file.h"
+#include "userprog/mmap.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -108,6 +109,7 @@ struct thread
     struct lock child_list_lock;
     struct thread *parent_thread;
     struct list open_files;
+    struct list mmap_address;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

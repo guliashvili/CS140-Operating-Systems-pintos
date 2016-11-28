@@ -121,9 +121,9 @@ void paging_activate(void *upage){
   }
 }
 
-void discard_file(struct supp_pagedir_entry *e){
-  if(pagedir_is_dirty(thread_current()->pagedir, e->upage)){
-    pagedir_set_dirty(thread_current()->pagedir, e->upage, false);
+void discard_file(uint32_t *pagedir, struct supp_pagedir_entry *e){
+  if(pagedir_is_dirty(pagedir, e->upage)){
+    pagedir_set_dirty(pagedir, e->upage, false);
 
     seek_sys(e->fd, e->s);
     write_sys(e->fd, e->upage, e->e - e->s);
@@ -213,6 +213,7 @@ void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
 }
 
 void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage){
+  ASSERT(pd);ASSERT(spd);
   void *kpage = pagedir_get_page(pd, upage);
 
   if(kpage)
@@ -225,6 +226,9 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
     struct supp_pagedir_entry *el = *elem;
     if(el->sector_t != BLOCK_SECTOR_T_ERROR)
       swap_read(el->sector_t, NULL);
+    else if(el->fd != -1){
+      discard_file(pd, el);
+    }
     free(el);
     (*elem) = NULL;
   }else{
