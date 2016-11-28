@@ -11,6 +11,7 @@
 #include "../lib/random.h"
 #include "paging.h"
 #include "swap.h"
+#include "../userprog/syscall.h"
 
 static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp_pagedir_entry *user);
 static struct frame* frame_get_frame(uint32_t idx);
@@ -71,6 +72,7 @@ void frame_map_init(int pages_cnt){
   frame_map->num_of_frames = pages_cnt;
 }
 
+
 /**
  * randomly moves the frame to swap(if there exists one without the prohibition)
  */
@@ -88,8 +90,12 @@ static void frame_move_random_swap(void){
   ASSERT(f->user);
   ASSERT(f->user->pagedir);
   ASSERT(f->user->upage);
-  f->user->sector_t = swap_write(kpage);
 
+  if(f->user->fd != -1){
+    discard_file(f->user);
+  }else {
+    f->user->sector_t = swap_write(kpage);
+  }
   struct supp_pagedir_entry *user = f->user;
   frame_free_page_no_lock(kpage);
   pagedir_clear_page(*user->pagedir, user->upage);

@@ -121,6 +121,15 @@ void paging_activate(void *upage){
   }
 }
 
+void discard_file(struct supp_pagedir_entry *e){
+  if(pagedir_is_dirty(thread_current()->pagedir, e->upage)){
+    pagedir_set_dirty(thread_current()->pagedir, e->upage, false);
+
+    seek_sys(e->fd, e->s);
+    write_sys(e->fd, e->upage, e->e - e->s);
+  }
+}
+
 /**
  * initializes upage in supplemental page table, but does not acquire any frame.
  * @param upage virtual user address
