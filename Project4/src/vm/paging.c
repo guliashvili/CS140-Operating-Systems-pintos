@@ -29,6 +29,26 @@ struct supp_pagedir* supp_pagedir_init(void){
   return ret;
 }
 
+
+void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, bool readonly){
+  struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
+  ASSERT(ee);
+  struct supp_pagedir_entry *el=*ee;
+  ASSERT(el);
+  int flags = el->flags | PAL_ZERO;
+  if(readonly) flags |= PAL_READONLY;
+  supp_pagedir_destroy_page(thread_current()->supp_pagedir, thread_current()->pagedir, vaddr);
+  supp_pagedir_virtual_create(vaddr, flags);
+  ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
+  ASSERT(ee);
+  el=*ee;
+  ASSERT(el);
+
+  el->fd = fd;
+  el->s = s;
+  el->e = e;
+}
+
 /**
  * Looks up for the mapping from upage to supp pagedir entry.
  * @param table  supp pagedir
@@ -76,30 +96,15 @@ void paging_activate(void *upage){
     supp_pagedir_really_create(f->upage);
 
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
+    ASSERT(f->fd == -1);
     //printf("activating %u\n",f->upage);
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
+  }else if(f->fd != -1){
+
   }
 }
-void paging_activate2(void *upage){
-  ASSERT(upage);
-  struct supp_pagedir_entry **ff = supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
-  ASSERT(ff);
-  ASSERT(*ff);
 
-  struct supp_pagedir_entry *f = *ff;
-  ASSERT(f);
-  ASSERT(f->upage);
-
-  if(!pagedir_get_page(thread_current()->pagedir, f->upage))
-    supp_pagedir_really_create(f->upage);
-
-  if(f->sector_t != BLOCK_SECTOR_T_ERROR){
-    //printf("activating %u\n",f->upage);
-    swap_read(f->sector_t, f->upage);
-    f->sector_t = BLOCK_SECTOR_T_ERROR;
-  }
-}
 /**
  * initializes upage in supplemental page table, but does not acquire any frame.
  * @param upage virtual user address
@@ -128,6 +133,7 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
     el->pagedir = &thread_current()->pagedir;
     el->sector_t = BLOCK_SECTOR_T_ERROR;
     el->upage = upage;
+    el->s = el->e = el->fd = -1;
   }
 
 }

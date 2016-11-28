@@ -62,36 +62,36 @@ static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const
   }
 }
 
-static void *get_arg_pointer(struct intr_frame *f, int i, int len, bool grow, bool prohibit, const char *name){
+static void *get_arg_pointer(void *pointer, int i, int len, bool grow, bool prohibit, const char *name){
 
-  void **p = (((void**)(f)->esp) + (i));
-  check_pointer((uint32_t)f->esp, p, grow, false, name);
-  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, false, name);
-  check_pointer((uint32_t)f->esp, *p, grow, false, name);
+  void **p = (void**)pointer + i;
+  check_pointer((uint32_t)pointer, p, grow, false, name);
+  check_pointer((uint32_t)pointer, (char*)p + 3, grow, false, name);
+  check_pointer((uint32_t)pointer, *p, grow, false, name);
   //check_pointer((char*)*p + 3);
 
   char *ret = (char*)*p;
-  check_pointer((uint32_t)f->esp, ret, grow, prohibit, name);
+  check_pointer((uint32_t)pointer, ret, grow, prohibit, name);
   if(len == -1){
-    for(;*ret;check_pointer((uint32_t)f->esp, ++ret, grow, prohibit, name));
+    for(;*ret;check_pointer((uint32_t)pointer, ++ret, grow, prohibit, name));
   }else{
-    check_pointer((uint32_t)f->esp, ret + len, grow, prohibit, name);
-    for(;len >= 0; len--, check_pointer((uint32_t)f->esp, ret++, grow, prohibit, name));
+    check_pointer((uint32_t)pointer, ret + len, grow, prohibit, name);
+    for(;len >= 0; len--, check_pointer((uint32_t)pointer, ret++, grow, prohibit, name));
   }
   void *rett = *p;
   return rett;
 }
-static int get_arg(struct intr_frame *f, int i, bool grow, bool prohibit, const char *name){
-  int *p = (((int*)(f)->esp) + (i));
-  check_pointer((uint32_t)f->esp, p, grow, prohibit, name);
-  check_pointer((uint32_t)f->esp, (char*)p + 3, grow, prohibit, name);
+static int get_arg(void *pointer, int i, bool grow, bool prohibit, const char *name){
+  int *p = (((int*)pointer) + (i));
+  check_pointer((uint32_t)pointer, p, grow, prohibit, name);
+  check_pointer((uint32_t)pointer, (char*)p + 3, grow, prohibit, name);
 
   return *p;
 }
 
-#define ITH_ARG_POINTER(f, i, TYPE, len, grow, prohibit, NAME) ((TYPE)get_arg_pointer(f, i, len, grow, prohibit, NAME))
+#define ITH_ARG_POINTER(f, i, TYPE, len, grow, prohibit, NAME) ((TYPE)get_arg_pointer((void*)f->esp, i, len, grow, prohibit, NAME))
 
-#define ITH_ARG(f, i, TYPE, grow, prohibit, NAME) ((TYPE)(get_arg(f, i, grow, prohibit, NAME)))
+#define ITH_ARG(f, i, TYPE, grow, prohibit, NAME) ((TYPE)(get_arg((void*)f->esp, i, grow, prohibit, NAME)))
 
 void
 syscall_init (void) {
@@ -102,83 +102,102 @@ syscall_init (void) {
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int sys_call_id = ITH_ARG(f, 0, int, false, true, "sys_call_id");
+  int sys_call_id = ITH_ARG(f, 0, int, false, false, "sys_call_id");
   uint32_t ret = 23464464;
+  int mmap_fd, mmap_size;
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
-      exit(ITH_ARG(f, 1, int, false, true, "EXIT1"));
-      ITH_ARG(f, 1, int, false, false, "EXIT1*");
+      exit(ITH_ARG(f, 1, int, false, false, "EXIT1"));
       break;
     case SYS_EXEC:                   /* Start another process. */
       ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, true, "EXEC1"));
       ITH_ARG_POINTER(f, 1, const char *, -1, false, false, "EXEC1*");
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
-      ret = wait(ITH_ARG(f, 1, int, false, true,"WAIT1"));
-      ITH_ARG(f, 1, int, false, false, "WAIT1*");
+      ret = wait(ITH_ARG(f, 1, int, false, false,"WAIT1"));
       break;
     case SYS_CREATE:                 /* Create a file. */
       ret = create(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "CREATE1"),
-                   ITH_ARG(f, 2, unsigned int, false, true, "CREATE2"));
+                   ITH_ARG(f, 2, unsigned int, false, false, "CREATE2"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "CREATE1*");
-      ITH_ARG(f, 2, unsigned int, false, false, "CREATE2*");
       break;
     case SYS_REMOVE:                 /* Delete a file. */
       ret = remove(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "REMOVE1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "REMOVE1*");
       break;
     case SYS_OPEN:                   /* Open a file. */
-
       ret = open(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "OPEN1*");
       break;
     case SYS_FILESIZE:               /* Obtain a file's size. */
-      ret = filesize(ITH_ARG(f, 1, int, false, true, "FILESIZE1"));
-      ITH_ARG(f, 1, int, false, false, "FILESIZE1*");
+      ret = filesize(ITH_ARG(f, 1, int, false, false, "FILESIZE1"));
       break;
-    case SYS_READ:                   /* Read from a file. */
-      ret = read(ITH_ARG(f, 1, int, false, true,"READ1"),
-                 ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true,"READ33"), true, true,"READ2"),
-                 ITH_ARG(f, 3, unsigned int, false, true, "READ3"));
-      ITH_ARG(f, 1, int, false, false, "READ1*");
-      ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, true,"READ33*"), false, false,"READ2*");
-      ITH_ARG(f, 3, unsigned int, false, false, "READ3");
+    case SYS_READ:                   /* Read from a file. */ // todo
+      ret = read(ITH_ARG(f, 1, int, false, false,"READ1"),
+                 ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33"), true, true,"READ2"),
+                 ITH_ARG(f, 3, unsigned int, false, false, "READ3"));
+      ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33*"), false, false,"READ2*");
       break;
-    case SYS_WRITE:                  /* Write to a file. */
-      ret = write(ITH_ARG(f, 1, int, false, true,"WRITE1"),
-                  ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true,"WRITE33"), true, true,"WRITE2"),
-                  ITH_ARG(f, 3, unsigned int, false, true,"WRITE3"));
+    case SYS_WRITE:                  /* Write to a file. */ // todo
+      ret = write(ITH_ARG(f, 1, int, false, false,"WRITE1"),
+                  ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, false,"WRITE33"), true, true,"WRITE2"),
+                  ITH_ARG(f, 3, unsigned int, false, false,"WRITE3"));
 
-      ITH_ARG(f, 1, int, false, false, "WRITE1*");
-      ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, true,"WRITE33*"), false, false,"WRITE2*");
-      ITH_ARG(f, 3, unsigned int, false, false, "WRITE3*");
+      ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, false,"WRITE33*"), false, false,"WRITE2*");
 
       break;
     case SYS_SEEK:                   /* Change position in a file. */
-      seek(ITH_ARG(f, 1, int, false, true,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, true,"SEEK2"));
-      ITH_ARG(f, 1, int, false, false,"SEEK1*");
-      ITH_ARG(f, 2, unsigned int, false, false,"SEEK2*");
+      seek(ITH_ARG(f, 1, int, false, false,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, false,"SEEK2"));
       break;
     case SYS_TELL:                   /* Report current position in a file. */
-      ret = tell(ITH_ARG(f, 1, int, false, true,"TELL1"));
-      ITH_ARG(f, 1, int, false, false,"TELL1*");
+      ret = tell(ITH_ARG(f, 1, int, false, false,"TELL1"));
       break;
     case SYS_CLOSE:                  /* Close a file. */
-      close(ITH_ARG(f, 1, int, false, true, "close1"));
-      ITH_ARG(f, 1, int, false, false, "close1*");
+      close(ITH_ARG(f, 1, int, false, false, "close1"));
+      break;
+    case SYS_MMAP:
+      mmap_fd = ITH_ARG(f, 1, int, false, false, "MMAP1");
+      if((mmap_size = filesize(mmap_fd)) == -1) exit(-1);
+
+      ret = mmap(mmap_fd,
+                 ITH_ARG_POINTER(f, 2, void *, mmap_size, true, false, "MMAP2"));
+      break;
+    case SYS_MUNMAP:
+      munmap(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
       break;
     default:
       exit(-1);
   }
-  ITH_ARG(f, 0, int, false, false, "sys_call_id*");
   if(ret != 23464464){
     f->eax = ret;
   }
 }
+
+int mmap(int fd, void *vaddr){
+  int len = filesize(fd);
+
+  int i;
+  for(i = 0; i < len; i += PGSIZE, vaddr += PGSIZE){
+    struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
+    ASSERT(ee);
+    struct supp_pagedir_entry *e=*ee;
+    ASSERT(e);
+    supp_pagedir_set_readfile(vaddr, fd, i, ((i + PGSIZE) < len) ? (i + PGSIZE) : len, false);
+  }
+
+
+
+  lock_release(&fileSystem);
+}
+
+void munmap(int map_id){
+
+}
+
 /* Terminate this process. */
 void exit (int status){
   struct thread *t = thread_current()->parent_thread;
