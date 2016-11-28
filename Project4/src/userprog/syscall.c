@@ -21,7 +21,9 @@
 #include "exception.h"
 #include "../vm/paging.h"
 #include "../lib/syscall-nr.h"
+#include "../threads/palloc.h"
 
+static void munmap(int map_id);
 static struct user_file_info *find_open_file(int fd);
 static void syscall_handler (struct intr_frame *);
 static bool equals_fd(const struct list_elem *elem, void *fd);
@@ -34,9 +36,6 @@ static bool create (const char *file, unsigned initial_size);
 static bool remove (const char *file);
 static int open (const char *file);
 static int filesize (int fd);
-static int read (int fd, void *buffer, unsigned length);
-static int write (int fd, const void *buffer, unsigned length);
-static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
@@ -137,13 +136,13 @@ syscall_handler (struct intr_frame *f)
       ret = filesize(ITH_ARG(f, 1, int, false, false, "FILESIZE1"));
       break;
     case SYS_READ:                   /* Read from a file. */ // todo
-      ret = read(ITH_ARG(f, 1, int, false, false,"READ1"),
+      ret = read_sys(ITH_ARG(f, 1, int, false, false,"READ1"),
                  ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33"), true, true,"READ2"),
                  ITH_ARG(f, 3, unsigned int, false, false, "READ3"));
       ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33*"), false, false,"READ2*");
       break;
     case SYS_WRITE:                  /* Write to a file. */ // todo
-      ret = write(ITH_ARG(f, 1, int, false, false,"WRITE1"),
+      ret = write_sys(ITH_ARG(f, 1, int, false, false,"WRITE1"),
                   ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, false,"WRITE33"), true, true,"WRITE2"),
                   ITH_ARG(f, 3, unsigned int, false, false,"WRITE3"));
 
@@ -151,7 +150,7 @@ syscall_handler (struct intr_frame *f)
 
       break;
     case SYS_SEEK:                   /* Change position in a file. */
-      seek(ITH_ARG(f, 1, int, false, false,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, false,"SEEK2"));
+      seek_sys(ITH_ARG(f, 1, int, false, false,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, false,"SEEK2"));
       break;
     case SYS_TELL:                   /* Report current position in a file. */
       ret = tell(ITH_ARG(f, 1, int, false, false,"TELL1"));
@@ -160,11 +159,8 @@ syscall_handler (struct intr_frame *f)
       close(ITH_ARG(f, 1, int, false, false, "close1"));
       break;
     case SYS_MMAP:
-      mmap_fd = ITH_ARG(f, 1, int, false, false, "MMAP1");
-      if((mmap_size = filesize(mmap_fd)) == -1) exit(-1);
-
-      ret = mmap(mmap_fd,
-                 ITH_ARG_POINTER(f, 2, void *, mmap_size, true, false, "MMAP2"));
+      ret = mmap(ITH_ARG(f, 1, int, false, false, "MMAP"),
+                 (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"));
       break;
     case SYS_MUNMAP:
       munmap(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
@@ -179,22 +175,24 @@ syscall_handler (struct intr_frame *f)
 
 int mmap(int fd, void *vaddr){
   int len = filesize(fd);
+  if(len == 0) return -1;
+  if(len == -1) return -1;
+  if(vaddr == 0) return -1;
+  if(pg_round_down(vaddr) != vaddr) return -1;
 
   int i;
-  for(i = 0; i < len; i += PGSIZE, vaddr += PGSIZE){
-    struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
-    ASSERT(ee);
-    struct supp_pagedir_entry *e=*ee;
-    ASSERT(e);
-    supp_pagedir_set_readfile(vaddr, fd, i, ((i + PGSIZE) < len) ? (i + PGSIZE) : len, false);
+  for(i = 0; i < len; i+= PGSIZE){
+    struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr + i * PGSIZE, false);
+    if(ee) return -1;
   }
 
-
-
-  lock_release(&fileSystem);
+  for(i = 0; i < len; i += PGSIZE, vaddr += PGSIZE){
+    supp_pagedir_virtual_create(vaddr, PAL_ZERO | PAL_USER);
+    supp_pagedir_set_readfile(vaddr, fd, i, ((i + PGSIZE) < len) ? (i + PGSIZE) : len, false);
+  }
 }
 
-void munmap(int map_id){
+static void munmap(int map_id){
 
 }
 
@@ -277,7 +275,7 @@ static int filesize (int fd){
   return ans;
 }
 /* Read from a file. */
-static int read (int fd, void * buffer, unsigned size){
+int read_sys (int fd, void * buffer, unsigned size){
   if(fd == 0){
     unsigned i;
     char *s = (char*)buffer;
@@ -294,7 +292,7 @@ static int read (int fd, void * buffer, unsigned size){
   }
 }
 /* Write to a file. */
-static int write (int fd , const void * buffer , unsigned size ){
+int write_sys (int fd , const void * buffer , unsigned size ){
   if(1 == fd){
     putbuf(buffer, size);
     return size;
@@ -309,7 +307,7 @@ static int write (int fd , const void * buffer , unsigned size ){
   }
 }
 /* Change position in a file. */
-static void seek (int fd, unsigned position){
+void seek_sys (int fd, unsigned position){
   lock_acquire(&fileSystem);
   struct user_file_info *f= find_open_file(fd);
   if(f != NULL) file_seek(f->f, position);

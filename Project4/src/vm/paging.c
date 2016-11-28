@@ -5,6 +5,7 @@
 #include "threads/vaddr.h"
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "frame.h"
 
 #include "../threads/malloc.h"
@@ -14,7 +15,10 @@
 #include "../threads/vaddr.h"
 #include "../threads/thread.h"
 #include "../userprog/pagedir.h"
+#include "../userprog/syscall.h"
 #include "swap.h"
+#include "../filesys/filesys.h"
+#include "../lib/string.h"
 
 
 static bool supp_pagedir_really_create(void *upage);
@@ -37,9 +41,6 @@ void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, bool readonly)
   ASSERT(el);
   int flags = el->flags | PAL_ZERO;
   if(readonly) flags |= PAL_READONLY;
-  supp_pagedir_destroy_page(thread_current()->supp_pagedir, thread_current()->pagedir, vaddr);
-  supp_pagedir_virtual_create(vaddr, flags);
-  ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
   ASSERT(ee);
   el=*ee;
   ASSERT(el);
@@ -95,13 +96,28 @@ void paging_activate(void *upage){
   if(!pagedir_get_page(thread_current()->pagedir, f->upage))
     supp_pagedir_really_create(f->upage);
 
+  void *kpage = pagedir_get_page(thread_current()->pagedir, f->upage);
+  ASSERT(kpage);
+
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
     ASSERT(f->fd == -1);
     //printf("activating %u\n",f->upage);
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }else if(f->fd != -1){
+    //PANIC("")
+    int fd = f->fd;
+    f->fd = -1;
 
+    ASSERT(upage == pg_round_down(upage));
+    seek_sys(fd, f->s);
+    supp_pagedir_set_prohibit(upage, 1);
+    ASSERT(f->e - f->s <= PGSIZE);
+    int read_size = f->e - f->s;
+    read_sys(fd, kpage, read_size);
+    memset(kpage + read_size, 0, PGSIZE - read_size);
+    supp_pagedir_set_prohibit(upage, 0);
+    f->fd = fd; // I need it activate not to be recalled for many times
   }
 }
 
@@ -221,6 +237,7 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
   lock_release(frame_get_lock());
 
   if(kpage == NULL){
+    ASSERT(prohibit);
     paging_activate(upage);
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
