@@ -103,7 +103,6 @@ void paging_activate(void *upage){
 
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
     ASSERT(f->fd == -1);
-    //printf("activating %u\n",f->upage);
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }else if(f->fd != -1){

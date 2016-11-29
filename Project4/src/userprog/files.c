@@ -41,11 +41,11 @@ int read_sys (int fd, void * buffer, unsigned size){
     if(f == NULL) ans = -1;
     else{
       void *vaddr = buffer;
-      while(size > 0){
+      /*while(size > 0){
         supp_pagedir_set_prohibit()
 
         pg_round_up(vaddr)
-      }
+      }*/
       ans = file_read(f->f, buffer, size);
     }
     lock_release((&fileSystem));
