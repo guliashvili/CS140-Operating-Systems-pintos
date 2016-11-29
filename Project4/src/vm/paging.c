@@ -19,6 +19,7 @@
 #include "swap.h"
 #include "../filesys/filesys.h"
 #include "../lib/string.h"
+#include "../userprog/files.h"
 
 
 static bool supp_pagedir_really_create(void *upage);
@@ -38,9 +39,10 @@ void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, bool readonly)
   struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
   ASSERT(ee);
   struct supp_pagedir_entry *el=*ee;
+  ASSERT(el->sector_t == -1);
   ASSERT(el);
-  int flags = el->flags | PAL_ZERO;
-  if(readonly) flags |= PAL_READONLY;
+  el->flags |= PAL_ZERO;
+  if(readonly) el->flags |= PAL_READONLY;
   ASSERT(ee);
   el=*ee;
   ASSERT(el);
@@ -124,9 +126,12 @@ void paging_activate(void *upage){
 void discard_file(uint32_t *pagedir, struct supp_pagedir_entry *e){
   if(pagedir_is_dirty(pagedir, e->upage)){
     pagedir_set_dirty(pagedir, e->upage, false);
-
+    supp_pagedir_set_prohibit(e->upage, 1);
     seek_sys(e->fd, e->s);
-    write_sys(e->fd, e->upage, e->e - e->s);
+    if(write_sys(e->fd, e->upage, e->e - e->s) != e->e - e->s){
+      PANIC("Less data was written");
+    }
+    supp_pagedir_set_prohibit(e->upage, 0);
   }
 }
 
@@ -214,13 +219,8 @@ void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
 
 void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage){
   ASSERT(pd);ASSERT(spd);
-  void *kpage = pagedir_get_page(pd, upage);
-
-  if(kpage)
-    frame_free_page(kpage);
 
   struct supp_pagedir_entry **elem = supp_pagedir_lookup(spd, upage, false);
-  pagedir_clear_page(pd, upage);
 
   if(elem != NULL && *elem != NULL){
     struct supp_pagedir_entry *el = *elem;
@@ -234,6 +234,13 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
   }else{
     NOT_REACHED();
   }
+
+  void *kpage = pagedir_get_page(pd, upage);
+
+  if(kpage)
+    frame_free_page(kpage);
+
+  pagedir_clear_page(pd, upage);
 }
 
 void supp_pagedir_set_prohibit(void *upage, bool prohibit){
@@ -255,7 +262,4 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
   ASSERT(kpage);
-
-
-
 }

@@ -35,4 +35,5 @@ void close_sys (int fd);
 int read_sys (int fd, void * buffer, unsigned size);
 int write_sys (int fd , const void * buffer , unsigned size);
 void seek_sys (int fd, unsigned position);
+int file_reopen_sys(int fd);
 #endif //PROJECT4_FILES_H

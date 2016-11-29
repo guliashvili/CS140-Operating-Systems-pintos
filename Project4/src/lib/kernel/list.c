@@ -556,6 +556,8 @@ list_unique (struct list *list, struct list *duplicates,
       elem = next;
 }
 struct list_elem *list_find(struct list *list,list_equals_func* equals, void *aux){
+  ASSERT(list->MAGIC1 == LIST_MAGIC);
+  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *e;
   for(e = list_begin(list); e != list_end(list); e = list_next(e)){
     if(equals(e, aux)) return e;

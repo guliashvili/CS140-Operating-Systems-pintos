@@ -1,7 +1,9 @@
 #include "files.h"
+#include "mmap.h"
 
 
 static int FD_C = 2;
+static int add_file(struct file *f);
 static struct user_file_info *find_open_file(int fd);
 static bool equals_fd(const struct list_elem *elem, void *fd);
 
@@ -37,7 +39,15 @@ int read_sys (int fd, void * buffer, unsigned size){
     lock_acquire(&fileSystem);
     struct user_file_info *f= find_open_file(fd);
     if(f == NULL) ans = -1;
-    else ans = file_read(f->f, buffer, size);
+    else{
+      void *vaddr = buffer;
+      while(size > 0){
+        supp_pagedir_set_prohibit()
+
+        pg_round_up(vaddr)
+      }
+      ans = file_read(f->f, buffer, size);
+    }
     lock_release((&fileSystem));
     return ans;
   }
@@ -76,14 +86,24 @@ unsigned tell_sys (int fd){
 /* Close a file. */
 void close_sys (int fd){
   lock_acquire(&fileSystem);
-  struct user_file_info *f= find_open_file(fd);
-  if(f != NULL) {
+  struct user_file_info *f = find_open_file(fd);
+  if (f != NULL) {
     file_close(f->f);
     list_remove(&f->link);
     free(f);
   }
-  lock_release((&fileSystem));
+  lock_release(&fileSystem);
+}
 
+static int add_file(struct file *f){
+  ASSERT(fileSystem.holder == thread_current());
+
+  struct user_file_info *info = malloc(sizeof(struct user_file_info));
+  info->f = f;
+  info->fd = FD_C++;
+  list_push_back(&thread_current()->open_files, &info->link);
+
+  return info->fd;
 }
 
 /* Open a file. */
@@ -93,10 +113,7 @@ int open_sys (const char *file_name){
   struct file *f = filesys_open(file_name);
   if(f == NULL) ret_FDC = -1;
   else {
-    struct user_file_info *info = malloc(sizeof(struct user_file_info));
-    info->f = f;
-    ret_FDC = info->fd = FD_C++;
-    list_push_back(&thread_current()->open_files, &info->link);
+    ret_FDC = add_file(f);
   }
   lock_release((&fileSystem));
   return ret_FDC;
@@ -114,7 +131,19 @@ bool create_sys (const char * file , unsigned initial_size ){
 bool remove_sys (const char * file) {
   bool ans;
   lock_acquire(&fileSystem);
-  ans = filesys_remove(file);;
+  ans = filesys_remove(file);
+  lock_release((&fileSystem));
+  return ans;
+}
+
+int file_reopen_sys(int fd){
+  int ans;
+  lock_acquire(&fileSystem);
+  struct user_file_info *f= find_open_file(fd);
+  if(f == NULL) ans = -1;
+  else{
+    ans = add_file(file_reopen(f->f));
+  }
   lock_release((&fileSystem));
   return ans;
 }

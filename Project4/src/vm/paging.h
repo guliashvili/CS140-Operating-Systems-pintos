@@ -42,4 +42,6 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
 void paging_activate(void *upage);
 void supp_pagedir_set_prohibit(void *upage, bool prohibit);
 void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, bool readonly);
+
+
 #endif //PROJECT4_PAGING_H

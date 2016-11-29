@@ -23,6 +23,7 @@
 #include "../lib/syscall-nr.h"
 #include "../threads/palloc.h"
 #include "files.h"
+#include "mmap.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -150,11 +151,11 @@ syscall_handler (struct intr_frame *f)
       close_sys(ITH_ARG(f, 1, int, false, false, "close1"));
       break;
     case SYS_MMAP:
-      ret = mmap(ITH_ARG(f, 1, int, false, false, "MMAP"),
+      ret = mmap_sys(ITH_ARG(f, 1, int, false, false, "MMAP"),
                  (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"));
       break;
     case SYS_MUNMAP:
-      munmap(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
+      munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
       break;
     default:
       exit(-1);
@@ -166,6 +167,7 @@ syscall_handler (struct intr_frame *f)
 
 /* Terminate this process. */
 void exit (int status){
+  //PANIC("status %d",status);
   struct thread *t = thread_current()->parent_thread;
   if(t != NULL) {
     struct thread_child *tc = thread_set_child_exit_status(t, thread_tid(), status);

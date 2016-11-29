@@ -13,9 +13,10 @@ struct mmap_info{
     void *vaddr;
     int num_of_pages;
     int id;
+    int fd;
 };
 
-void munmap(int map_id);
-int mmap(int fd, void *vaddr);
+void munmap_sys(int map_id);
+int mmap_sys(int fd, void *vaddr);
 
 #endif //PROJECT4_MMAP_H

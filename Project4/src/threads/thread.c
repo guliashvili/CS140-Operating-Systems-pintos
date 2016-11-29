@@ -15,6 +15,8 @@
 #include "thread.h"
 #include "../lib/kernel/list.h"
 #include "malloc.h"
+#include "../userprog/mmap.h"
+#include "../lib/debug.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -300,6 +302,15 @@ void
 thread_exit (void)
 {
   ASSERT (!intr_context ());
+  struct thread *t = thread_current();
+  struct list_elem *e;
+
+  for (e = list_begin (&t->mmap_address); e != list_end (&t->mmap_address);)
+  {
+    struct mmap_info *mc = list_entry (e, struct mmap_info, link);
+    e = list_next (e);
+    munmap_sys(mc->id);
+  }
 
 #ifdef USERPROG
   process_exit ();
@@ -307,17 +318,21 @@ thread_exit (void)
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
-  intr_disable ();
-  struct thread *t = thread_current();
-  list_remove (&t->allelem);
-  struct list_elem *e;
 
-  for (e = list_begin (&t->mmap_address); e != list_end (&t->mmap_address);)
+  //Close opened files and free their structs.
+
+  lock_acquire(&fileSystem);
+  for (e = list_begin (&t->open_files); e != list_end (&t->open_files);)
   {
-    struct mmap_info *mc = list_entry (e, struct mmap_info, link);
+    struct user_file_info *tc = list_entry (e, struct user_file_info, link);
+    if(tc->f != NULL) file_close(tc->f);
     e = list_next (e);
-    free(mc);
+    free(tc);
   }
+  lock_release(&fileSystem);
+
+  intr_disable ();
+  list_remove (&t->allelem);
 
   //Remove(close files and free struct) information about children(if any).
   lock_acquire(&t->child_list_lock);
@@ -330,14 +345,6 @@ thread_exit (void)
   }
   lock_release(&t->child_list_lock);
 
-  //Close opened files and free their structs.
-  for (e = list_begin (&t->open_files); e != list_end (&t->open_files);)
-  {
-    struct user_file_info *tc = list_entry (e, struct user_file_info, link);
-    if(tc->f != NULL) file_close(tc->f);
-    e = list_next (e);
-    free(tc);
-  }
 
   //Close my exe file opened in parent's struct and set NULL
   t = thread_current()->parent_thread;
