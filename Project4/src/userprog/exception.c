@@ -206,6 +206,6 @@ page_fault (struct intr_frame *f)
     else return;
   }
 
-  paging_activate(fault_addr);
+  paging_activate(fault_page);
 }
 
