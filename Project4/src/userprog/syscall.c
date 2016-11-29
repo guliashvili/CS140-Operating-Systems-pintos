@@ -26,7 +26,7 @@
 #include "mmap.h"
 
 static void syscall_handler (struct intr_frame *);
-
+static int read_sys_wrapper (int fd, void * buffer, unsigned size);
 /* Projects 2 and later. */
 static void halt (void);
 static int exec (const char *file);
@@ -128,7 +128,7 @@ syscall_handler (struct intr_frame *f)
       ret = filesize_sys(ITH_ARG(f, 1, int, false, false, "FILESIZE1"));
       break;
     case SYS_READ:                   /* Read from a file. */ // todo
-      ret = read_sys(ITH_ARG(f, 1, int, false, false,"READ1"),
+      ret = read_sys_wrapper(ITH_ARG(f, 1, int, false, false,"READ1"),
                  ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33"), true, true,"READ2"),
                  ITH_ARG(f, 3, unsigned int, false, false, "READ3"));
       ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33*"), false, false,"READ2*");
@@ -193,4 +193,12 @@ static tid_t exec (const char * cmd_line ){
 /* Wait for a child process to die. */
 static int wait (int pid){
   return process_wait(pid);
+}
+
+static int read_sys_wrapper (int fd, void * buffer, unsigned size){
+  struct supp_pagedir_entry **ee = supp_pagedir_lookup(thread_current()->supp_pagedir, buffer, false);
+  ASSERT(ee);
+  ASSERT(*ee);
+  if((*ee)->flags & PAL_READONLY) exit(-1);
+  return read_sys(fd, buffer, size);
 }
