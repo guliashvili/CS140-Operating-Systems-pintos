@@ -260,7 +260,6 @@ static void init_child_struct(struct thread_child *thread_child, int process_id)
   sema_init(&thread_child->semaphore, 0);
   thread_child->status = -2;
   thread_child->process_id = process_id;
-  thread_child->f = NULL;
 }
 
 /* Returns the name of the running thread. */
@@ -339,24 +338,11 @@ thread_exit (void)
   for (e = list_begin (&t->child_list); e != list_end (&t->child_list);)
   {
     struct thread_child *tc = list_entry (e, struct thread_child, link);
-    if(tc->f != NULL) file_close(tc->f);
     e = list_next (e);
     free(tc);
   }
   lock_release(&t->child_list_lock);
 
-
-  //Close my exe file opened in parent's struct and set NULL
-  t = thread_current()->parent_thread;
-  lock_acquire(&t->child_list_lock);
-  if(t != NULL){
-    struct thread_child* tc = find_child_with_tid_locked(t, thread_tid());
-    if(tc != NULL) {
-      if (tc->f != NULL) file_close(tc->f);
-      tc->f = NULL;
-    }
-  }
-  lock_release(&t->child_list_lock);
   t = thread_current();
   t->status = THREAD_DYING;
   schedule ();

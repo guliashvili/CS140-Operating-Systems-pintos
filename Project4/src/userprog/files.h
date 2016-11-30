@@ -28,7 +28,7 @@
 unsigned tell_sys (int fd);
 bool create_sys (const char *file, unsigned initial_size);
 bool remove_sys (const char *file);
-int open_sys (const char *file);
+int open_sys (const char *file_name, bool readonly);
 int filesize_sys (int fd);
 unsigned tell_sys (int fd);
 void close_sys (int fd);

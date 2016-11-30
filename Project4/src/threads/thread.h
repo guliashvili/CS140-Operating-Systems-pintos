@@ -32,7 +32,6 @@ struct thread_child{
     struct semaphore semaphore;
     tid_t process_id;
     int status;
-    struct file *f;
 
     struct list_elem link;
 };

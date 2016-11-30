@@ -121,7 +121,7 @@ syscall_handler (struct intr_frame *f)
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "REMOVE1*");
       break;
     case SYS_OPEN:                   /* Open a file. */
-      ret = open_sys(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"));
+      ret = open_sys(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"), false);
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "OPEN1*");
       break;
     case SYS_FILESIZE:               /* Obtain a file's size. */
@@ -152,7 +152,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_MMAP:
       ret = mmap_sys(ITH_ARG(f, 1, int, false, false, "MMAP"),
-                 (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"));
+                 (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"), 0, false);
       break;
     case SYS_MUNMAP:
       munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));

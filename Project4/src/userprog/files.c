@@ -41,11 +41,6 @@ int read_sys (int fd, void * buffer, unsigned size){
     if(f == NULL) ans = -1;
     else{
       void *vaddr = buffer;
-      /*while(size > 0){
-        supp_pagedir_set_prohibit()
-
-        pg_round_up(vaddr)
-      }*/
       ans = file_read(f->f, buffer, size);
     }
     lock_release((&fileSystem));
@@ -107,12 +102,13 @@ static int add_file(struct file *f){
 }
 
 /* Open a file. */
-int open_sys (const char *file_name){
+int open_sys (const char *file_name, bool readonly){
   int ret_FDC;
   lock_acquire(&fileSystem);
   struct file *f = filesys_open(file_name);
   if(f == NULL) ret_FDC = -1;
   else {
+    if(readonly) file_deny_write(f);
     ret_FDC = add_file(f);
   }
   lock_release((&fileSystem));
@@ -139,10 +135,12 @@ bool remove_sys (const char * file) {
 int file_reopen_sys(int fd){
   int ans;
   lock_acquire(&fileSystem);
-  struct user_file_info *f= find_open_file(fd);
+  struct user_file_info *f = find_open_file(fd);
   if(f == NULL) ans = -1;
   else{
-    ans = add_file(file_reopen(f->f));
+    struct file *file = file_reopen(f->f);
+    file_seek(file, 0);
+    ans = add_file(file);
   }
   lock_release((&fileSystem));
   return ans;

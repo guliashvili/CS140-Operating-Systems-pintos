@@ -30,6 +30,7 @@
 #include "../threads/palloc.h"
 #include "../vm/frame.h"
 #include "threads/thread.h"
+#include "files.h"
 
 static thread_func start_process NO_RETURN;
 bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);
@@ -251,8 +252,8 @@ struct Elf32_Phdr
 #define PF_R 4          /* Readable. */
 
 static bool setup_stack(const char *first, char **esp, char **strtok_data);
-static bool validate_segment (const struct Elf32_Phdr *, struct file *);
-static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
+static bool validate_segment (const struct Elf32_Phdr *, int fd);
+static bool load_segment (int fd, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
 
@@ -266,7 +267,6 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
 
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
-  struct file *file = NULL;
   off_t file_ofs;
   bool success = false;
   int i;
@@ -286,19 +286,14 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   process_activate ();
 
   /* Open executable file. */
-  lock_acquire(&fileSystem);
-  file = filesys_open (file_name_strtok);
-  lock_release(&fileSystem);
+  int fd = open_sys(file_name_strtok, true);
 
-  if (file == NULL)
+  if (fd == -1)
     {
       printf ("load: %s: open failed\n", file_name_strtok);
       goto done;
     }
-  lock_acquire(&fileSystem);
-  file_deny_write(file);
-  int file_read_ret = file_read (file, &ehdr, sizeof ehdr);
-  lock_release(&fileSystem);
+  int file_read_ret = read_sys(fd, &ehdr, sizeof ehdr);
 
   /* Read and verify executable header. */
 
@@ -320,19 +315,13 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
     {
       struct Elf32_Phdr phdr;
 
-      lock_acquire(&fileSystem);
-      int length = file_length(file);
-      lock_release(&fileSystem);
+      int length = filesize_sys(fd);
 
       if (file_ofs < 0 || file_ofs > length)
         goto done;
 
-      lock_acquire(&fileSystem);
-
-      file_seek (file, file_ofs);
-      int file_read_ret = file_read (file, &phdr, sizeof phdr);
-
-      lock_release(&fileSystem);
+      seek_sys (fd, file_ofs);
+      int file_read_ret = read_sys (fd, &phdr, sizeof phdr);
 
       if (file_read_ret != sizeof phdr)
         goto done;
@@ -351,7 +340,7 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
         case PT_SHLIB:
           goto done;
         case PT_LOAD:
-          if (validate_segment (&phdr, file))
+          if (validate_segment (&phdr, fd))
             {
               bool writable = (phdr.p_flags & PF_W) != 0;
               uint32_t file_page = phdr.p_offset & ~PGMASK;
@@ -373,7 +362,7 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
-              if (!load_segment (file, file_page, (void *) mem_page,
+              if (!load_segment (fd, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
             }
@@ -394,11 +383,8 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
 
  done:
   /* We arrive here whether the load is successful or not. */
-  if(success) find_child_with_tid(thread_current()->parent_thread, thread_current()->tid)->f = file;
-  else{
-    lock_acquire(&fileSystem);
-    file_close(file);
-    lock_release(&fileSystem);
+  if(!success){
+    close_sys(fd);
   }
 
   return success;
@@ -407,16 +393,14 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
-validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
+validate_segment (const struct Elf32_Phdr *phdr, int fd)
 {
   /* p_offset and p_vaddr must have the same page offset. */
   if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
     return false;
 
   /* p_offset must point within FILE. */
-  lock_acquire(&fileSystem);
-  int length = file_length (file);
-  lock_release(&fileSystem);
+  int length = filesize_sys (fd);
   if (phdr->p_offset > (Elf32_Off) length)
     return false;
 
@@ -467,16 +451,14 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
+load_segment (int fd, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
-  lock_acquire(&fileSystem);
-  file_seek (file, ofs);
-  lock_release(&fileSystem);
+  seek_sys (fd, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -486,15 +468,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      supp_pagedir_virtual_create(upage, PAL_USER | PAL_PROHIBIT_CACHE | (writable?0:PAL_READONLY));
+      supp_pagedir_virtual_create(upage, PAL_USER | (writable?0:PAL_READONLY));
       paging_activate(upage);
       void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
       ASSERT(kpage);
 
       /* Load this page. */
-      lock_acquire(&fileSystem);
-      int file_read_ret = file_read (file, kpage, page_read_bytes);
-      lock_release(&fileSystem);
+      int file_read_ret = read_sys (fd, kpage, page_read_bytes);
 
       if (file_read_ret != (int) page_read_bytes)
         {
@@ -517,7 +497,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack(const char *res, char **ep, char **strtok_data) {
   uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
-  supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO | PAL_PROHIBIT_CACHE);
+  supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO);
   paging_activate(upage);
 
   *ep = PHYS_BASE;

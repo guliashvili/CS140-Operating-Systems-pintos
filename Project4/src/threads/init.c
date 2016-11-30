@@ -28,6 +28,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "userprog/mmap.h"
 #else
 #include "tests/threads/tests.h"
 #endif
@@ -126,6 +127,7 @@ main (void)
   locate_block_devices ();
   filesys_init (format_filesys);
 #endif
+  mmap_init();
 
   printf ("Boot complete.\n");
   
