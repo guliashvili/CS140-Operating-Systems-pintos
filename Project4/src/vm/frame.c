@@ -92,11 +92,16 @@ static void frame_move_random_swap(void){
   ASSERT(f->user);
   ASSERT(f->user->pagedir);
   ASSERT(f->user->upage);
+  ASSERT(f->user->sector_t == -1);
 
   if(f->user->fd != -1 && mmap_discard(f->user)){
 
   }else {
-    f->user->sector_t = swap_write(kpage);
+    //if(f->user->fd == -1 && (f->user->flags & PAL_ZERO) && !pagedir_is_dirty(*f->user->pagedir, f->user->upage)){
+
+  //  }else{
+      f->user->sector_t = swap_write(kpage);
+   // }
   }
   struct supp_pagedir_entry *user = f->user;
   frame_free_page_no_lock(kpage);

@@ -182,10 +182,10 @@ page_fault (struct intr_frame *f)
 //          user ? "user" : "kernel");
 
   if(!is_user_vaddr(fault_addr))
-    exit(-1);
+    exit(-1, "NOT user vaddr(exception.c)");
   if(is_kernel_vaddr(fault_addr))
-    exit(-1);
-  if(fault_addr == NULL) exit(-1);
+    exit(-1, "IS kernel vaddr(exception.c)");
+  if(fault_addr == NULL) exit(-1, "fault addr is NULL(exception.c)");
 
   struct thread *t = thread_current();
   void *fault_page =  pg_round_down(fault_addr);
@@ -197,12 +197,12 @@ page_fault (struct intr_frame *f)
     PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
   }
   if(pagedir_get_page(pd, fault_addr))
-    exit(-1);
+    exit(-1, "page exists in pagedir(exception)");
 
   struct supp_pagedir_entry **p = supp_pagedir_lookup(spd, fault_addr, false);
   if(p == NULL || *p == NULL) {
     if(!stack_resized(f->esp, fault_addr))
-      exit(-1);
+      exit(-1, "Stack was not increased");
     else return;
   }
 

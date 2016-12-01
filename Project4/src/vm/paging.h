@@ -3,6 +3,7 @@
 
 #include "threads/pte.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "lib/stdbool.h"
 #include "lib/stdint.h"
 #include "devices/block.h"
@@ -14,6 +15,7 @@
 #define PAGING_MAGIC 432432232
 
 struct supp_pagedir_entry{
+    struct lock lock;
     enum palloc_flags flags;
     uint32_t **pagedir;
 

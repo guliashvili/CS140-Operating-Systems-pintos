@@ -33,26 +33,21 @@ static void halt (void);
 static int exec (const char *file);
 static int wait (int);
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name UNUSED);
 
-
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name UNUSED){
+static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
-    return 0;
+    exit(-1, "pointer is more then PHYS_BASE(check_pointer)");
+
   if(!pagedir_get_page(thread_current()->pagedir, s)){
     if(!(grow && (is_user_vaddr(s) && stack_resized(esp, s)))) {
-      return 0;
+      if(!grow) exit(-1, name);
+      if(!is_user_vaddr(s)) exit(-1, "is not user vaddr(check_pointer)");
+      exit(-1, "stac was not resized");
     }
   }
   supp_pagedir_set_prohibit(s, prohibit);
   if(prohibit) {
     ASSERT(pagedir_get_page(thread_current()->pagedir, s));
-  }
-  return 1;
-}
-static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
-  if(!check_pointer_nonsastik(esp, s, grow, prohibit, name)) {
-    exit(-1);
   }
 }
 
@@ -104,7 +99,7 @@ syscall_handler (struct intr_frame *f)
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
-      exit(ITH_ARG(f, 1, int, false, false, "EXIT1"));
+      exit(ITH_ARG(f, 1, int, false, false, "EXIT1"), "Exit syscall");
       break;
     case SYS_EXEC:                   /* Start another process. */
       ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, true, "EXEC1"));
@@ -160,7 +155,7 @@ syscall_handler (struct intr_frame *f)
       munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
       break;
     default:
-      exit(-1);
+      exit(-1, "Cold not find syscall id(syscall)");
   }
   if(ret != 23464464){
     f->eax = ret;
@@ -168,8 +163,7 @@ syscall_handler (struct intr_frame *f)
 }
 
 /* Terminate this process. */
-void exit (int status){
-  //PANIC("status %d",status);
+void exit (int status, const char *caller){
   struct thread *t = thread_current()->parent_thread;
   if(t != NULL) {
     struct thread_child *tc = thread_set_child_exit_status(t, thread_tid(), status);
@@ -201,6 +195,6 @@ static int read_sys_wrapper (int fd, void * buffer, unsigned size){
   struct supp_pagedir_entry **ee = supp_pagedir_lookup(thread_current()->supp_pagedir, buffer, false);
   ASSERT(ee);
   ASSERT(*ee);
-  if((*ee)->flags & PAL_READONLY) exit(-1);
+  if((*ee)->flags & PAL_READONLY) exit(-1, "could not write in readonly page");
   return read_sys(fd, buffer, size);
 }
