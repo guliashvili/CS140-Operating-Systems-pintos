@@ -488,8 +488,8 @@ load_segment (int fd, off_t ofs, uint8_t *upage,
 static bool
 setup_stack(const char *res, char **ep, char **strtok_data) {
   uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
-  supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO);
-  paging_activate(upage);
+  supp_pagedir_virtual_create(upage, PAL_USER | PAL_ZERO | PAL_PROHIBIT_CACHE);
+  paging_activate(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));
 
   *ep = PHYS_BASE;
 

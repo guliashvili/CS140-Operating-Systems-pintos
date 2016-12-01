@@ -85,6 +85,15 @@ static void frame_move_random_swap(void){
 
   for(i = 0;(f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && i < 1000; i++);
   ASSERT(i < 1000);
+
+  struct lock *lock;
+  /**
+   * deadlock is not gonna happen. I'm not locking in order,
+   * but first lock acquired in exception is lock on the supp_pagedir_entry without entry,
+   * second lock is on the supp_pagedir_entry with frame. ( so they will not make deadlock )
+   */
+  lock_acquire(lock = &f->user->lock);
+
   void *kpage = pagedir_get_page(*f->user->pagedir, f->user->upage);
   ASSERT(kpage);
   ASSERT(pg_round_down(kpage) == kpage);
@@ -107,6 +116,9 @@ static void frame_move_random_swap(void){
 
   frame_free_page_no_lock(kpage);
   pagedir_clear_page(*user->pagedir, user->upage);
+
+  lock_release(lock);
+
 }
 /**
  * allocates  frame, if no free slot available moves one in swap

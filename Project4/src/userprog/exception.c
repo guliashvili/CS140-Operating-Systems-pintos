@@ -122,11 +122,14 @@ bool stack_resized(uint32_t esp, void *p) {
   ASSERT(!pagedir_get_page(thread_current()->pagedir, p));
 
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
+    /* I'm not scared of parallelism, virtually create will not acquire frame, so no other thread cares this
+     * supp pagedir entry */
     supp_pagedir_virtual_create(pg_round_down(p), PAL_USER | PAL_ZERO);
   }
-  void **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
+  struct supp_pagedir_entry **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
   if(d && *d){
-    paging_activate(pg_round_down(p));
+
+    paging_activate(*d);
     return true;
   }
   return false;
@@ -197,16 +200,34 @@ page_fault (struct intr_frame *f)
     PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
   }
 
+
+  /**
+   * pagedir methods are thread safe(one lock for each table).
+   * If pagedir returns something, that means that frame actually was there but it had some access problems,
+   * so just crash it
+   */
   if(pagedir_get_page(pd, fault_addr))
     exit(-1, "page exists in pagedir(exception)");
 
+
+  /* moving something from frame to swap will not change addresses, only some fields in the supp_pagedir_entry
+   * Only holder thread screws this up.
+   * supp_pagedir_lookup is thread safe. (but it might not need it)
+   */
   struct supp_pagedir_entry **p = supp_pagedir_lookup(spd, fault_addr, false);
+
   if(p == NULL || *p == NULL) {
     if(!stack_resized(f->esp, fault_addr))
       exit(-1, "Stack was not increased");
     else return;
   }
 
-  paging_activate(fault_page);
+  /* this supp_pagedir_entry has not acquired any frame for now, but will acquire one(probebly).
+   * before it acquires one lets lock it for safety.
+   */
+
+
+  paging_activate(*p);
+
 }
 

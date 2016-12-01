@@ -22,7 +22,7 @@
 #include "../userprog/files.h"
 
 
-static bool supp_pagedir_really_create(void *upage);
+static bool supp_pagedir_really_create(struct supp_pagedir_entry *el);
 
 /**
  * init supp pagedir internal structures
@@ -31,6 +31,7 @@ static bool supp_pagedir_really_create(void *upage);
 struct supp_pagedir* supp_pagedir_init(void){
   struct supp_pagedir * ret = calloc(1, sizeof(struct supp_pagedir));
   ASSERT(ret);
+  lock_init(&ret->lock);
   return ret;
 }
 
@@ -64,13 +65,16 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   ASSERT (table);
   ASSERT(upage);
   ASSERT(pd_no(upage) < (1<<PDBITS));
+  //lock_acquire(&table->lock);
   struct supp_pagedir2 *pde = table->entries[pd_no(upage)];
   if(pde == NULL){
     if(create) {
       pde = table->entries[pd_no(upage)] = calloc(1, sizeof(struct supp_pagedir2));
       ASSERT(pde);
-    }else
+    }else {
+      //lock_release(&table->lock);
       return NULL;
+    }
   }
   ASSERT(pt_no(upage) < (1<<PTBITS));
 
@@ -78,25 +82,22 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   if(pde->entries[pt_no(upage)] != NULL) {
     ASSERT(pde->entries[pt_no(upage)]->MAGIC == PAGING_MAGIC);
   }
-  return &pde->entries[pt_no (upage)];
+  struct supp_pagedir_entry **ret =  &pde->entries[pt_no (upage)];
+  //lock_release(&table->lock);
+  return ret;
 }
 
 /**
  * Makes page real. If it's not mapped to the palloc, mapps it to one. Also reocvers data if any.
  * @param f
  */
-void paging_activate(void *upage){
-  ASSERT(upage);
-  struct supp_pagedir_entry **ff = supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false);
-  ASSERT(ff);
-  ASSERT(*ff);
+void paging_activate(struct supp_pagedir_entry *f){
+  lock_acquire(&f->lock);
 
-  struct supp_pagedir_entry *f = *ff;
-  ASSERT(f);
-  ASSERT(f->upage);
 
+  void *upage = f->upage;
   if(!pagedir_get_page(thread_current()->pagedir, f->upage))
-    supp_pagedir_really_create(f->upage);
+    supp_pagedir_really_create(f);
 
   void *kpage = pagedir_get_page(thread_current()->pagedir, f->upage);
   ASSERT(kpage);
@@ -105,20 +106,20 @@ void paging_activate(void *upage){
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }else if(f->fd != -1){
-    //PANIC("")
     int fd = f->fd;
     f->fd = -1;
 
     ASSERT(upage == pg_round_down(upage));
     seek_sys(fd, f->s);
-    supp_pagedir_set_prohibit(upage, 1);
     ASSERT(f->e - f->s <= PGSIZE);
     int read_size = f->e - f->s;
     read_sys(fd, kpage, read_size);
     memset(kpage + read_size, 0, PGSIZE - read_size);
-    supp_pagedir_set_prohibit(upage, 0);
     f->fd = fd; // I need it activate not to be recalled for many times
   }
+
+  lock_release(&f->lock);
+
 }
 
 /**
@@ -161,22 +162,9 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
  * @param upage
  * @return
  */
-static bool supp_pagedir_really_create(void *upage){
-  struct supp_pagedir *table = thread_current()->supp_pagedir;
+static bool supp_pagedir_really_create(struct supp_pagedir_entry *el){
   uint32_t *pd = thread_current()->pagedir;
-
-  ASSERT(table);
-  ASSERT(pd);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (is_user_vaddr (upage));
-  if(pagedir_get_page(pd, upage))
-    PANIC("in pagedir this upage %u should not be present",  (uint32_t)upage);
-
-  struct supp_pagedir_entry ** elem = supp_pagedir_lookup(table, upage, false);
-  if(elem == NULL || *elem == NULL) PANIC("in suppl pagedir this upage %u should exist", (uint32_t)upage);
-
-  struct supp_pagedir_entry * el = *elem;
-  ASSERT(el->upage == upage);
+  void *upage = el->upage;
   void *kpage = frame_get_page(el->flags, el);
 
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
@@ -243,7 +231,7 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
 
   if(kpage == NULL){
     ASSERT(prohibit);
-    paging_activate(upage);
+    paging_activate(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
   ASSERT(kpage);
