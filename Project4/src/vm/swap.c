@@ -53,7 +53,7 @@ void swap_read(block_sector_t t, void *vaddr){
   ASSERT(vaddr == NULL || is_user_vaddr(vaddr));
 
   ASSERT(t % NUM_OF_HARD_DISK_SEGMENT == 0);
-  lock_acquire2(&s_map->lock);
+  lock_acquire(&s_map->lock);
   ASSERT(bitmap_all(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 1));
   bitmap_set(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 0);
 

@@ -40,7 +40,6 @@ int read_sys (int fd, void * buffer, unsigned size){
     struct user_file_info *f= find_open_file(fd);
     if(f == NULL) ans = -1;
     else{
-      void *vaddr = buffer;
       ans = file_read(f->f, buffer, size);
     }
     lock_release((&fileSystem));

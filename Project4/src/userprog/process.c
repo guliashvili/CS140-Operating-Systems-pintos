@@ -31,6 +31,7 @@
 #include "../vm/frame.h"
 #include "threads/thread.h"
 #include "files.h"
+#include "mmap.h"
 
 static thread_func start_process NO_RETURN;
 bool load (char *file_name_strtok,char **strtok_data,void (**eip) (void), void **esp);
@@ -459,6 +460,7 @@ load_segment (int fd, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   seek_sys (fd, ofs);
+  mmap_sys(fd, upage, ofs, read_bytes, PAL_ZERO | (writable?0:PAL_READONLY) | PAL_DONT_SYNC_ON_DISK);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -468,22 +470,11 @@ load_segment (int fd, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      supp_pagedir_virtual_create(upage, PAL_USER | (writable?0:PAL_READONLY));
-      paging_activate(upage);
-      void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
-      ASSERT(kpage);
+      if(!read_bytes)
+        supp_pagedir_virtual_create(upage, PAL_USER | (writable?0:PAL_READONLY) | PAL_ZERO);
 
-      /* Load this page. */
-      int file_read_ret = read_sys (fd, kpage, page_read_bytes);
 
-      if (file_read_ret != (int) page_read_bytes)
-        {
-          supp_pagedir_destroy_page (thread_current()->supp_pagedir, thread_current()->pagedir, upage);
-          return false;
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-      supp_pagedir_set_prohibit(upage, 0);
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;

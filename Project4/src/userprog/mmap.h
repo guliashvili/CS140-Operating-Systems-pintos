@@ -15,8 +15,10 @@ struct mmap_info{
     int id;
     int fd;
 };
-void mmap_init();
+
+bool mmap_discard(struct supp_pagedir_entry *e);
+void mmap_init(void);
 void munmap_sys(int map_id);
-int mmap_sys(int fd, void *vaddr, int s, bool readonly);
+int mmap_sys(int fd, void *vaddr, int s, int len, int flags);
 
 #endif //PROJECT4_MMAP_H

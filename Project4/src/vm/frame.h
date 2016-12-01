@@ -18,7 +18,7 @@ struct frame_map{
     struct frame *frames;
 };
 
-struct lock *frame_get_lock();
+struct lock *frame_get_lock(void);
 void frame_map_init(int pages_cnt);
 void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user);
 void frame_free_page (void *kpage);

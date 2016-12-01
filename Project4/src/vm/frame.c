@@ -12,6 +12,7 @@
 #include "paging.h"
 #include "swap.h"
 #include "../userprog/syscall.h"
+#include "../userprog/mmap.h"
 
 static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp_pagedir_entry *user);
 static struct frame* frame_get_frame(uint32_t idx);
@@ -23,7 +24,8 @@ static struct frame_map *frame_map;
 /* needs the lock */
 static struct frame* frame_get_frame(uint32_t idx){
   ASSERT(frame_map->lock.holder == thread_current()); // Check if lock is held by current thread
-  ASSERT(idx < frame_map->num_of_frames);
+  ASSERT(frame_map->num_of_frames >= 0);
+  ASSERT(idx < (uint32_t)frame_map->num_of_frames);
   return frame_map->frames + idx;
 }
 /* Initilizes single frame.
@@ -91,8 +93,8 @@ static void frame_move_random_swap(void){
   ASSERT(f->user->pagedir);
   ASSERT(f->user->upage);
 
-  if(f->user->fd != -1){
-    discard_file(thread_current()->pagedir, f->user);
+  if(f->user->fd != -1 && mmap_discard(f->user)){
+
   }else {
     f->user->sector_t = swap_write(kpage);
   }
@@ -151,6 +153,6 @@ void frame_set_prohibit(void *kpage, bool prohibit){
   f->prohibit_cache = prohibit;
 }
 
-struct lock *frame_get_lock(){
+struct lock *frame_get_lock(void){
   return &frame_map->lock;
 }

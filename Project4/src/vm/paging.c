@@ -35,14 +35,13 @@ struct supp_pagedir* supp_pagedir_init(void){
 }
 
 
-void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, bool readonly){
+void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, int flags){
   struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
   ASSERT(ee);
   struct supp_pagedir_entry *el=*ee;
   ASSERT(el->sector_t == -1);
   ASSERT(el);
-  el->flags |= PAL_ZERO;
-  if(readonly) el->flags |= PAL_READONLY;
+  el->flags |= PAL_ZERO | flags;
   ASSERT(ee);
   el=*ee;
   ASSERT(el);
@@ -76,8 +75,9 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   ASSERT(pt_no(upage) < (1<<PTBITS));
 
   /* Return the page table entry. */
-  if(pde->entries[pt_no(upage)] != NULL)
+  if(pde->entries[pt_no(upage)] != NULL) {
     ASSERT(pde->entries[pt_no(upage)]->MAGIC == PAGING_MAGIC);
+  }
   return &pde->entries[pt_no (upage)];
 }
 
@@ -102,7 +102,6 @@ void paging_activate(void *upage){
   ASSERT(kpage);
 
   if(f->sector_t != BLOCK_SECTOR_T_ERROR){
-    ASSERT(f->fd == -1);
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }else if(f->fd != -1){
@@ -119,18 +118,6 @@ void paging_activate(void *upage){
     memset(kpage + read_size, 0, PGSIZE - read_size);
     supp_pagedir_set_prohibit(upage, 0);
     f->fd = fd; // I need it activate not to be recalled for many times
-  }
-}
-
-void discard_file(uint32_t *pagedir, struct supp_pagedir_entry *e){
-  if(pagedir_is_dirty(pagedir, e->upage)){
-    pagedir_set_dirty(pagedir, e->upage, false);
-    supp_pagedir_set_prohibit(e->upage, 1);
-    seek_sys(e->fd, e->s);
-    if(write_sys(e->fd, e->upage, e->e - e->s) != e->e - e->s){
-      PANIC("Less data was written");
-    }
-    supp_pagedir_set_prohibit(e->upage, 0);
   }
 }
 
@@ -225,9 +212,7 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
     struct supp_pagedir_entry *el = *elem;
     if(el->sector_t != BLOCK_SECTOR_T_ERROR)
       swap_read(el->sector_t, NULL);
-    else if(el->fd != -1){
-      discard_file(pd, el);
-    }
+
     free(el);
     (*elem) = NULL;
   }else{

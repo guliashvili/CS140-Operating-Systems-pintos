@@ -24,6 +24,7 @@
 #include "../threads/palloc.h"
 #include "files.h"
 #include "mmap.h"
+#include "../lib/debug.h"
 
 static void syscall_handler (struct intr_frame *);
 static int read_sys_wrapper (int fd, void * buffer, unsigned size);
@@ -32,10 +33,10 @@ static void halt (void);
 static int exec (const char *file);
 static int wait (int);
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name UNUSED);
 
 
-static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
+static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohibit, const char *name UNUSED){
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     return 0;
   if(!pagedir_get_page(thread_current()->pagedir, s)){
@@ -44,8 +45,9 @@ static bool check_pointer_nonsastik(uint32_t esp, void *s, bool grow, bool prohi
     }
   }
   supp_pagedir_set_prohibit(s, prohibit);
-  if(prohibit)
+  if(prohibit) {
     ASSERT(pagedir_get_page(thread_current()->pagedir, s));
+  }
   return 1;
 }
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
@@ -152,7 +154,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_MMAP:
       ret = mmap_sys(ITH_ARG(f, 1, int, false, false, "MMAP"),
-                 (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"), 0, false);
+                 (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"), 0, -666, 0);
       break;
     case SYS_MUNMAP:
       munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
