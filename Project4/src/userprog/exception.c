@@ -196,6 +196,7 @@ page_fault (struct intr_frame *f)
   if(t->pagedir == NULL) {
     PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
   }
+
   if(pagedir_get_page(pd, fault_addr))
     exit(-1, "page exists in pagedir(exception)");
 

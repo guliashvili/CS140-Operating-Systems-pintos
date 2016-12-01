@@ -7,9 +7,15 @@
 #include "threads/palloc.h"
 #include "../threads/vaddr.h"
 #include "../threads/pte.h"
+#include "../threads/palloc.h"
+#include "../threads/synch.h"
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
+static struct lock *get_local_lock(uint32_t *pd);
+static struct lock *get_local_lock(uint32_t *pd){
+  return (struct lock*)((char*)pd + PGSIZE + PGSIZE/2);
+}
 
 /* Creates a new page directory that has mappings for kernel
    virtual addresses, but none for user virtual addresses.
@@ -18,9 +24,11 @@ static void invalidate_pagedir (uint32_t *);
 uint32_t *
 pagedir_create (void) 
 {
-  uint32_t *pd = palloc_get_page (0);
-  if (pd != NULL)
-    memcpy (pd, init_page_dir, PGSIZE);
+  uint32_t *pd = palloc_get_multiple (0, 2);
+  if (pd != NULL) {
+    memcpy(pd, init_page_dir, PGSIZE);
+    lock_init(get_local_lock(pd));
+  }
   return pd;
 }
 
@@ -48,7 +56,8 @@ pagedir_destroy (uint32_t *pd)
           }
         palloc_free_page (pt);
       }
-  palloc_free_page (pd);
+  get_local_lock(pd)->semaphore.MAGIC1 = -1;
+  palloc_free_multiple (pd, 2);
 }
 
 /* Returns the address of the page table entry for virtual
@@ -75,8 +84,8 @@ lookup_page (uint32_t *pd, const void *vaddr, bool create)
       if (create)
         {
           pt = palloc_get_page (PAL_ZERO);
-          if (pt == NULL) 
-            return NULL; 
+          if (pt == NULL)
+            return NULL;
       
           *pde = pde_create (pt);
         }
@@ -102,8 +111,9 @@ lookup_page (uint32_t *pd, const void *vaddr, bool create)
 bool
 pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
 {
-  uint32_t *pte;
+  lock_acquire(get_local_lock(pd));
 
+  uint32_t *pte;
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (pg_ofs (kpage) == 0);
   ASSERT (is_user_vaddr (upage));
@@ -112,14 +122,18 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
 
   pte = lookup_page (pd, upage, true);
 
-  if (pte != NULL) 
+  if (pte != NULL)
     {
       ASSERT ((*pte & PTE_P) == 0);
       *pte = pte_create_user (kpage, writable);
+      lock_release(get_local_lock(pd));
       return true;
     }
-  else
+  else {
+    lock_release(get_local_lock(pd));
     return false;
+  }
+
 }
 
 /* Looks up the physical address that corresponds to user virtual
@@ -127,26 +141,34 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
    corresponding to that physical address, or a null pointer if
    UADDR is unmapped. */
 void *
-pagedir_get_page (uint32_t *pd, const void *uaddr) 
+pagedir_get_page (uint32_t *pd, const void *uaddr)
 {
-  uint32_t *pte;
+  lock_acquire(get_local_lock(pd));
 
+  uint32_t *pte;
   ASSERT (is_user_vaddr (uaddr));
-  
+
   pte = lookup_page (pd, uaddr, false);
-  if (pte != NULL && (*pte & PTE_P) != 0)
-    return pte_get_page (*pte) + pg_ofs (uaddr);
-  else
+
+  if (pte != NULL && (*pte & PTE_P) != 0) {
+    void *ret = pte_get_page(*pte) + pg_ofs(uaddr);
+    lock_release(get_local_lock(pd));
+    return ret;
+  }
+  else {
+    lock_release(get_local_lock(pd));
     return NULL;
+  }
 }
 
 void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
+  lock_acquire(get_local_lock(pd));
+
   uint32_t *pte;
   ASSERT(pd);
   ASSERT (uaddr);
   ASSERT (pg_ofs (uaddr) == 0);
   ASSERT (is_user_vaddr (uaddr));
-
   pte = lookup_page (pd, uaddr, false);
   ASSERT(pte);
   ASSERT(*pte);
@@ -157,6 +179,7 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
 
     invalidate_pagedir (pd);
   }
+  lock_release(get_local_lock(pd));
 }
 
 /* Marks user virtual page UPAGE "not present" in page
@@ -164,10 +187,11 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
    bits in the page table entry are preserved.
    UPAGE need not be mapped. */
 void
-pagedir_clear_page (uint32_t *pd, void *upage) 
+pagedir_clear_page (uint32_t *pd, void *upage)
 {
-  uint32_t *pte;
+  lock_acquire(get_local_lock(pd));
 
+  uint32_t *pte;
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
 
@@ -177,6 +201,7 @@ pagedir_clear_page (uint32_t *pd, void *upage)
       *pte &= ~PTE_P;
       invalidate_pagedir (pd);
     }
+  lock_release(get_local_lock(pd));
 }
 
 /* Returns true if the PTE for virtual page VPAGE in PD is dirty,
@@ -184,28 +209,35 @@ pagedir_clear_page (uint32_t *pd, void *upage)
    installed.
    Returns false if PD contains no PTE for VPAGE. */
 bool
-pagedir_is_dirty (uint32_t *pd, const void *vpage) 
+pagedir_is_dirty (uint32_t *pd, const void *vpage)
 {
+  lock_acquire(get_local_lock(pd));
   uint32_t *pte = lookup_page (pd, vpage, false);
-  return pte != NULL && (*pte & PTE_D) != 0;
+  bool ret = pte != NULL && (*pte & PTE_D) != 0;
+
+  lock_release(get_local_lock(pd));
+  return ret;
 }
 
 /* Set the dirty bit to DIRTY in the PTE for virtual page VPAGE
    in PD. */
 void
-pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty) 
+pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty)
 {
+  lock_acquire(get_local_lock(pd));
   uint32_t *pte = lookup_page (pd, vpage, false);
-  if (pte != NULL) 
+  if (pte != NULL)
     {
       if (dirty)
         *pte |= PTE_D;
-      else 
+      else
         {
           *pte &= ~(uint32_t) PTE_D;
           invalidate_pagedir (pd);
         }
     }
+
+  lock_release(get_local_lock(pd));
 }
 
 /* Returns true if the PTE for virtual page VPAGE in PD has been
@@ -213,17 +245,21 @@ pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty)
    installed and the last time it was cleared.  Returns false if
    PD contains no PTE for VPAGE. */
 bool
-pagedir_is_accessed (uint32_t *pd, const void *vpage) 
+pagedir_is_accessed (uint32_t *pd, const void *vpage)
 {
+  lock_acquire(get_local_lock(pd));
   uint32_t *pte = lookup_page (pd, vpage, false);
-  return pte != NULL && (*pte & PTE_A) != 0;
+  bool ret = pte != NULL && (*pte & PTE_A) != 0;
+  lock_release(get_local_lock(pd));
+  return ret;
 }
 
 /* Sets the accessed bit to ACCESSED in the PTE for virtual page
    VPAGE in PD. */
 void
-pagedir_set_accessed (uint32_t *pd, const void *vpage, bool accessed) 
+pagedir_set_accessed (uint32_t *pd, const void *vpage, bool accessed)
 {
+  lock_acquire(get_local_lock(pd));
   uint32_t *pte = lookup_page (pd, vpage, false);
   if (pte != NULL) 
     {
@@ -235,6 +271,8 @@ pagedir_set_accessed (uint32_t *pd, const void *vpage, bool accessed)
           invalidate_pagedir (pd);
         }
     }
+
+  lock_release(get_local_lock(pd));
 }
 
 /* Loads page directory PD into the CPU's page directory base
@@ -252,7 +290,6 @@ pagedir_activate (uint32_t *pd)
      Address of the Page Directory". */
   asm volatile ("movl %0, %%cr3" : : "r" (vtop (pd)) : "memory");
 }
-
 /* Returns the currently active page directory. */
 static uint32_t *
 active_pd (void) 

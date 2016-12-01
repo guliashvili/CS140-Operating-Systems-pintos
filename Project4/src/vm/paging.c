@@ -150,6 +150,7 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
     el->sector_t = BLOCK_SECTOR_T_ERROR;
     el->upage = upage;
     el->s = el->e = el->fd = -1;
+    lock_init(&el->lock);
   }
 
 }

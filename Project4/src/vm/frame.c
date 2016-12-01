@@ -104,6 +104,7 @@ static void frame_move_random_swap(void){
    // }
   }
   struct supp_pagedir_entry *user = f->user;
+
   frame_free_page_no_lock(kpage);
   pagedir_clear_page(*user->pagedir, user->upage);
 }
