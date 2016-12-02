@@ -23,7 +23,7 @@
 
 
 static bool supp_pagedir_really_create(struct supp_pagedir_entry *el);
-
+static void paging_activate_no_lock(struct supp_pagedir_entry *f);
 /**
  * init supp pagedir internal structures
  * @return pointer to the supp pagedir struct
@@ -65,14 +65,12 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
   ASSERT (table);
   ASSERT(upage);
   ASSERT(pd_no(upage) < (1<<PDBITS));
-  //lock_acquire(&table->lock);
   struct supp_pagedir2 *pde = table->entries[pd_no(upage)];
   if(pde == NULL){
     if(create) {
       pde = table->entries[pd_no(upage)] = calloc(1, sizeof(struct supp_pagedir2));
       ASSERT(pde);
     }else {
-      //lock_release(&table->lock);
       return NULL;
     }
   }
@@ -83,18 +81,20 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
     ASSERT(pde->entries[pt_no(upage)]->MAGIC == PAGING_MAGIC);
   }
   struct supp_pagedir_entry **ret =  &pde->entries[pt_no (upage)];
-  //lock_release(&table->lock);
   return ret;
 }
 
+
+void paging_activate(struct supp_pagedir_entry *f){
+  lock_acquire(&f->lock);
+  paging_activate_no_lock(f);
+  lock_release(&f->lock);
+}
 /**
  * Makes page real. If it's not mapped to the palloc, mapps it to one. Also reocvers data if any.
  * @param f
  */
-void paging_activate(struct supp_pagedir_entry *f){
-  lock_acquire(&f->lock);
-
-
+static void paging_activate_no_lock(struct supp_pagedir_entry *f){
   void *upage = f->upage;
   if(!pagedir_get_page(thread_current()->pagedir, f->upage))
     supp_pagedir_really_create(f);
@@ -117,8 +117,6 @@ void paging_activate(struct supp_pagedir_entry *f){
     memset(kpage + read_size, 0, PGSIZE - read_size);
     f->fd = fd; // I need it activate not to be recalled for many times
   }
-
-  lock_release(&f->lock);
 
 }
 
@@ -224,15 +222,19 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
   if(prohibit) f->flags |= PAL_PROHIBIT_CACHE;
   else if(!prohibit) f->flags &= ~PAL_PROHIBIT_CACHE;
 
+  lock_acquire2(&f->lock);
+
   lock_acquire(frame_get_lock());
+
   void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   if(kpage) frame_set_prohibit(kpage, prohibit);
   lock_release(frame_get_lock());
 
-  if(kpage == NULL){
-    ASSERT(prohibit);
-    paging_activate(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));
+  if(kpage == NULL && prohibit){
+    paging_activate_no_lock(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
+
   ASSERT(kpage);
+  lock_release(&f->lock);
 }

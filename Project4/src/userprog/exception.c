@@ -15,6 +15,7 @@
 #include "../vm/frame.h"
 #include "../threads/palloc.h"
 #include "../threads/interrupt.h"
+#include "exception.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -119,7 +120,6 @@ kill (struct intr_frame *f)
     }
 }
 bool stack_resized(uint32_t esp, void *p) {
-  ASSERT(!pagedir_get_page(thread_current()->pagedir, p));
 
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
     /* I'm not scared of parallelism, virtually create will not acquire frame, so no other thread cares this
@@ -206,8 +206,8 @@ page_fault (struct intr_frame *f)
    * If pagedir returns something, that means that frame actually was there but it had some access problems,
    * so just crash it
    */
-  if(pagedir_get_page(pd, fault_addr))
-    exit(-1, "page exists in pagedir(exception)");
+   if(!not_present)
+    exit(-1, "access rights violation.");
 
 
   /* moving something from frame to swap will not change addresses, only some fields in the supp_pagedir_entry

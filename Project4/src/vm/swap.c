@@ -47,10 +47,10 @@ block_sector_t swap_write(void *kpage){
   return start;
 }
 
-void swap_read(block_sector_t t, void *vaddr){
+void swap_read(block_sector_t t, void *vaddr_p){
   ASSERT(s_map);
   ASSERT(s_map->map);
-  ASSERT(vaddr == NULL || is_user_vaddr(vaddr));
+  ASSERT(vaddr_p == NULL || is_user_vaddr(vaddr_p));
 
   ASSERT(t % NUM_OF_HARD_DISK_SEGMENT == 0);
   lock_acquire(&s_map->lock);
@@ -59,11 +59,9 @@ void swap_read(block_sector_t t, void *vaddr){
 
   struct block *swap = block_get_role(BLOCK_SWAP);
   block_sector_t i;
-  if(vaddr != NULL) {
-    for (i = t; i < t + NUM_OF_HARD_DISK_SEGMENT; i++, vaddr += BLOCK_SECTOR_SIZE) {
-      supp_pagedir_set_prohibit(vaddr, 1);
-      block_read(swap, i, pagedir_get_page(thread_current()->pagedir, vaddr));
-      supp_pagedir_set_prohibit(vaddr, 0);
+  if(vaddr_p != NULL) {
+    for (i = t; i < t + NUM_OF_HARD_DISK_SEGMENT; i++, vaddr_p += BLOCK_SECTOR_SIZE) {
+      block_read(swap, i, pagedir_get_page(thread_current()->pagedir, vaddr_p));
     }
   }
   lock_release(&s_map->lock);
