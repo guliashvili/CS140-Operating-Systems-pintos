@@ -38,16 +38,27 @@ static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const
   if((unsigned int)s >= (unsigned  int)PHYS_BASE)
     exit(-1, "pointer is more then PHYS_BASE(check_pointer)");
 
+  ASSERT(thread_current()->pagedir);
   if(!pagedir_get_page(thread_current()->pagedir, s)){
     if(!(grow && (is_user_vaddr(s) && stack_resized(esp, s)))) {
-      if(!grow) exit(-1, name);
+      if(!grow) {
+        if(!prohibit)
+          ASSERT(!((*supp_pagedir_lookup(thread_current()->supp_pagedir, s, false))->flags & PAL_PROHIBIT_CACHE));
+        exit(-1, name);
+      }
       if(!is_user_vaddr(s)) exit(-1, "is not user vaddr(check_pointer)");
-      exit(-1, "stac was not resized");
+      exit(-1, "stack was not resized");
     }
   }
   supp_pagedir_set_prohibit(s, prohibit);
   if(prohibit) {
+    ASSERT(thread_current()->pagedir);
     ASSERT(pagedir_get_page(thread_current()->pagedir, s));
+  }
+  if(prohibit) {
+    ASSERT((*supp_pagedir_lookup(thread_current()->supp_pagedir, s, false))->flags & PAL_PROHIBIT_CACHE);
+  }else {
+    ASSERT(!((*supp_pagedir_lookup(thread_current()->supp_pagedir, s, false))->flags & PAL_PROHIBIT_CACHE));
   }
 }
 

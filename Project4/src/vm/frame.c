@@ -83,17 +83,24 @@ static void frame_move_random_swap(void){
   int i;for(i = 0; i < frame_map->num_of_frames; i++) ASSERT(frame_map->frames[i].MAGIC == FRAME_MAGIC);
   struct frame *f;
 
-  for(i = 0;(f = frame_get_frame(random_ulong() % frame_map->num_of_frames))->prohibit_cache && i < 1000; i++);
+  struct lock *lock;
+  for(i = 0;i < 1000; i++){
+    f = frame_get_frame(random_ulong() % frame_map->num_of_frames);
+    if(lock_try_acquire(lock = &f->user->lock) && f->prohibit_cache)
+      lock_release(lock);
+    else break;
+
+  }
   ASSERT(i < 1000);
 
-  struct lock *lock;
   /**
    * deadlock is not gonna happen. I'm not locking in order,
    * but first lock acquired in exception is lock on the supp_pagedir_entry without entry,
    * second lock is on the supp_pagedir_entry with frame. ( so they will not make deadlock )
    */
-  lock_acquire(lock = &f->user->lock);
 
+
+  ASSERT(*f->user->pagedir);
   void *kpage = pagedir_get_page(*f->user->pagedir, f->user->upage);
   ASSERT(kpage);
   ASSERT(pg_round_down(kpage) == kpage);
@@ -127,15 +134,21 @@ static void frame_move_random_swap(void){
  * @return
  */
 void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) {
+  ASSERT(user->lock.holder == thread_current());
   ASSERT(!(flags & PAL_THROUGH_FRAME));
   ASSERT(flags & PAL_USER);
 
   flags |= PAL_THROUGH_FRAME;
 
-  lock_acquire(&frame_map->lock);
 
   void *page = palloc_get_page(flags);
+
+  lock_acquire(&frame_map->lock);
+
   if(page == NULL){ // no free page available
+    //caller function should have acquired user lock,
+    // and frame free function will acquire another  supp_pagedir_entry lock, but deadlock won't happen,
+    // first supp_pagedir_entry is without frame and second is with frame.
     frame_move_random_swap();
     page = palloc_get_page(flags);
     ASSERT(page);

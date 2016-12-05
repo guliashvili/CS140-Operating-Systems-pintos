@@ -61,6 +61,7 @@ void swap_read(block_sector_t t, void *vaddr_p){
   block_sector_t i;
   if(vaddr_p != NULL) {
     for (i = t; i < t + NUM_OF_HARD_DISK_SEGMENT; i++, vaddr_p += BLOCK_SECTOR_SIZE) {
+      ASSERT(thread_current()->pagedir);
       block_read(swap, i, pagedir_get_page(thread_current()->pagedir, vaddr_p));
     }
   }

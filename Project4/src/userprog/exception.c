@@ -123,7 +123,7 @@ bool stack_resized(uint32_t esp, void *p) {
 
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
     /* I'm not scared of parallelism, virtually create will not acquire frame, so no other thread cares this
-     * supp pagedir entry */
+     virtual create changes only holder thread structure */
     supp_pagedir_virtual_create(pg_round_down(p), PAL_USER | PAL_ZERO);
   }
   struct supp_pagedir_entry **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
@@ -175,21 +175,17 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-//  /* To implement virtual memory, delete the rest of the function
-//     body, and replace it with code that brings in the page to
-//     which fault_addr refers. */
-//  printf ("Page fault at %p: %s error %s page in %s context.\n",
-//          fault_addr,
-//          not_present ? "not present" : "rights violation",
-//          write ? "writing" : "reading",
-//          user ? "user" : "kernel");
-
   if(!is_user_vaddr(fault_addr))
     exit(-1, "NOT user vaddr(exception.c)");
+
+  //actually it's same as !is_user_vaddr, but just in case
   if(is_kernel_vaddr(fault_addr))
     exit(-1, "IS kernel vaddr(exception.c)");
+
+  //If request is on NULL crash any way
   if(fault_addr == NULL) exit(-1, "fault addr is NULL(exception.c)");
 
+  //No locks required for this block
   struct thread *t = thread_current();
   void *fault_page =  pg_round_down(fault_addr);
   uint32_t *pd = thread_current()->pagedir;
@@ -197,36 +193,33 @@ page_fault (struct intr_frame *f)
 
 
   if(t->pagedir == NULL) {
-    PANIC("someone is destroying pagedir but is so noob that access page in swap or nonexistent page %d", fault_addr);
+    PANIC("Someone is destroying pagedir(thread_exit), "
+                  "but is so noob that accesses page in swap or nonexistent page %d", fault_addr);
   }
 
 
   /**
-   * pagedir methods are thread safe(one lock for each table).
-   * If pagedir returns something, that means that frame actually was there but it had some access problems,
-   * so just crash it
+   * I could do pagedir_get_page but it would require locks in pagedir and it's slowing it down too much,
+   * so let's just use this flag. If mapping exists in pagedir then exception is correct.
    */
    if(!not_present)
     exit(-1, "access rights violation.");
 
 
-  /* moving something from frame to swap will not change addresses, only some fields in the supp_pagedir_entry
-   * Only holder thread screws this up.
-   * supp_pagedir_lookup is thread safe. (but it might not need it)
+  /*
+   * Moving something from frame to swap/file will just change reference to the external structure.
    */
   struct supp_pagedir_entry **p = supp_pagedir_lookup(spd, fault_addr, false);
 
+  // If mapping does not exist no other thread can bring it into existence,
+  // and holder thread is here, so it's thread safe
   if(p == NULL || *p == NULL) {
     if(!stack_resized(f->esp, fault_addr))
       exit(-1, "Stack was not increased");
     else return;
   }
 
-  /* this supp_pagedir_entry has not acquired any frame for now, but will acquire one(probebly).
-   * before it acquires one lets lock it for safety.
-   */
-
-
+  // this supp_pagedir_entry has not acquired any frame for now, but will acquire one(probably).
   paging_activate(*p);
 
 }

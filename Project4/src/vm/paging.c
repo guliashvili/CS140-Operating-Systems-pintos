@@ -62,8 +62,9 @@ void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, int flags){
 struct supp_pagedir_entry **
 supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 {
+  if(upage == NULL)
+    return NULL;
   ASSERT (table);
-  ASSERT(upage);
   ASSERT(pd_no(upage) < (1<<PDBITS));
   struct supp_pagedir2 *pde = table->entries[pd_no(upage)];
   if(pde == NULL){
@@ -86,7 +87,7 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 
 
 void paging_activate(struct supp_pagedir_entry *f){
-  lock_acquire(&f->lock);
+  lock_acquire(&f->lock); // if it has frame then it won't need to acquire any other suppagedirentry loc
   paging_activate_no_lock(f);
   lock_release(&f->lock);
 }
@@ -95,10 +96,13 @@ void paging_activate(struct supp_pagedir_entry *f){
  * @param f
  */
 static void paging_activate_no_lock(struct supp_pagedir_entry *f){
+  //lock of the supp_pagedir_entry is acquired do whatever you want, don't free it.
+  ASSERT(f->lock.holder == thread_current());
   void *upage = f->upage;
+  ASSERT(thread_current()->pagedir);
   if(!pagedir_get_page(thread_current()->pagedir, f->upage))
     supp_pagedir_really_create(f);
-
+  ASSERT(thread_current()->pagedir);
   void *kpage = pagedir_get_page(thread_current()->pagedir, f->upage);
   ASSERT(kpage);
 
@@ -106,16 +110,13 @@ static void paging_activate_no_lock(struct supp_pagedir_entry *f){
     swap_read(f->sector_t, f->upage);
     f->sector_t = BLOCK_SECTOR_T_ERROR;
   }else if(f->fd != -1){
-    int fd = f->fd;
-    f->fd = -1;
 
     ASSERT(upage == pg_round_down(upage));
-    seek_sys(fd, f->s);
+    seek_sys(f->fd, f->s);
     ASSERT(f->e - f->s <= PGSIZE);
     int read_size = f->e - f->s;
-    read_sys(fd, kpage, read_size);
+    read_sys(f->fd, kpage, read_size);
     memset(kpage + read_size, 0, PGSIZE - read_size);
-    f->fd = fd; // I need it activate not to be recalled for many times
   }
 
 }
@@ -146,6 +147,7 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
     el->MAGIC = PAGING_MAGIC;
     el->flags = flag;
     el->pagedir = &thread_current()->pagedir;
+    ASSERT(*el->pagedir);
     el->sector_t = BLOCK_SECTOR_T_ERROR;
     el->upage = upage;
     el->s = el->e = el->fd = -1;
@@ -161,6 +163,7 @@ void supp_pagedir_virtual_create(void *upage, enum palloc_flags flag){
  * @return
  */
 static bool supp_pagedir_really_create(struct supp_pagedir_entry *el){
+  ASSERT(el->lock.holder == thread_current());
   uint32_t *pd = thread_current()->pagedir;
   void *upage = el->upage;
   void *kpage = frame_get_page(el->flags, el);
@@ -170,6 +173,7 @@ static bool supp_pagedir_really_create(struct supp_pagedir_entry *el){
 
   bool ret = pagedir_set_page(pd, upage, kpage, !(el->flags & PAL_READONLY));
   ASSERT(ret);
+  ASSERT(pd);
   ASSERT(pagedir_get_page(pd, upage) != NULL);
   return ret;
 }
@@ -205,7 +209,7 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
   }else{
     NOT_REACHED();
   }
-
+  ASSERT(pd);
   void *kpage = pagedir_get_page(pd, upage);
 
   if(kpage)
@@ -225,13 +229,14 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
   lock_acquire2(&f->lock);
 
   lock_acquire(frame_get_lock());
-
+  ASSERT(thread_current()->pagedir);
   void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   if(kpage) frame_set_prohibit(kpage, prohibit);
   lock_release(frame_get_lock());
 
   if(kpage == NULL && prohibit){
     paging_activate_no_lock(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));
+    ASSERT(thread_current()->pagedir);
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
 

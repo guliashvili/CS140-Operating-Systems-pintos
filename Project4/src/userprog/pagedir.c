@@ -111,6 +111,7 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
   ASSERT (is_user_vaddr (upage));
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pd != init_page_dir);
+  ASSERT(pd != NULL);
 
   pte = lookup_page (pd, upage, true);
 
@@ -135,6 +136,7 @@ pagedir_get_page (uint32_t *pd, const void *uaddr)
 {
   uint32_t *pte;
   ASSERT (is_user_vaddr (uaddr));
+  ASSERT(pd != NULL);
 
   pte = lookup_page (pd, uaddr, false);
 
@@ -153,6 +155,8 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
   ASSERT (uaddr);
   ASSERT (pg_ofs (uaddr) == 0);
   ASSERT (is_user_vaddr (uaddr));
+  ASSERT(pd != NULL);
+
   pte = lookup_page (pd, uaddr, false);
   ASSERT(pte);
   ASSERT(*pte);
@@ -175,6 +179,8 @@ pagedir_clear_page (uint32_t *pd, void *upage)
   uint32_t *pte;
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
+  ASSERT(pd != NULL);
+
 
   pte = lookup_page (pd, upage, false);
   if (pte != NULL && (*pte & PTE_P) != 0)
@@ -191,6 +197,8 @@ pagedir_clear_page (uint32_t *pd, void *upage)
 bool
 pagedir_is_dirty (uint32_t *pd, const void *vpage)
 {
+  ASSERT(pd != NULL);
+
   uint32_t *pte = lookup_page (pd, vpage, false);
   bool ret = pte != NULL && (*pte & PTE_D) != 0;
 
@@ -202,6 +210,8 @@ pagedir_is_dirty (uint32_t *pd, const void *vpage)
 void
 pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty)
 {
+  ASSERT(pd != NULL);
+
   uint32_t *pte = lookup_page (pd, vpage, false);
   if (pte != NULL)
     {
@@ -222,6 +232,8 @@ pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty)
 bool
 pagedir_is_accessed (uint32_t *pd, const void *vpage)
 {
+  ASSERT(pd != NULL);
+
   uint32_t *pte = lookup_page (pd, vpage, false);
   bool ret = pte != NULL && (*pte & PTE_A) != 0;
   return ret;
@@ -232,6 +244,8 @@ pagedir_is_accessed (uint32_t *pd, const void *vpage)
 void
 pagedir_set_accessed (uint32_t *pd, const void *vpage, bool accessed)
 {
+  ASSERT(pd != NULL);
+
   uint32_t *pte = lookup_page (pd, vpage, false);
   if (pte != NULL) 
     {

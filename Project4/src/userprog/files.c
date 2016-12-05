@@ -102,6 +102,8 @@ static int add_file(struct file *f){
 
 /* Open a file. */
 int open_sys (const char *file_name, bool readonly){
+  if(file_name == NULL)
+    return -1;
   int ret_FDC;
   lock_acquire(&fileSystem);
   struct file *f = filesys_open(file_name);
