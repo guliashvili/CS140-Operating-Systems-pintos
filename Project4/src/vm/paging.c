@@ -31,7 +31,6 @@ static void paging_activate_no_lock(struct supp_pagedir_entry *f);
 struct supp_pagedir* supp_pagedir_init(void){
   struct supp_pagedir * ret = calloc(1, sizeof(struct supp_pagedir));
   ASSERT(ret);
-  lock_init(&ret->lock);
   return ret;
 }
 
@@ -198,22 +197,24 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
   ASSERT(pd);ASSERT(spd);
 
   struct supp_pagedir_entry **elem = supp_pagedir_lookup(spd, upage, false);
+  ASSERT(elem != NULL && *elem != NULL);
 
-  if(elem != NULL && *elem != NULL){
-    struct supp_pagedir_entry *el = *elem;
-    if(el->sector_t != BLOCK_SECTOR_T_ERROR)
-      swap_read(el->sector_t, NULL);
+  struct supp_pagedir_entry *el = *elem;
 
-    free(el);
-    (*elem) = NULL;
-  }else{
-    NOT_REACHED();
-  }
+  lock_acquire(&el->lock);
+
+  if(el->sector_t != BLOCK_SECTOR_T_ERROR)
+    swap_read(el->sector_t, NULL);
+
+
   ASSERT(pd);
   void *kpage = pagedir_get_page(pd, upage);
 
   if(kpage)
     frame_free_page(kpage);
+
+  free(el);
+  (*elem) = NULL;
 
   pagedir_clear_page(pd, upage);
 }
@@ -228,11 +229,9 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
 
   lock_acquire2(&f->lock);
 
-  lock_acquire(frame_get_lock());
   ASSERT(thread_current()->pagedir);
   void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   if(kpage) frame_set_prohibit(kpage, prohibit);
-  lock_release(frame_get_lock());
 
   if(kpage == NULL && prohibit){
     paging_activate_no_lock(*supp_pagedir_lookup(thread_current()->supp_pagedir, upage, false));

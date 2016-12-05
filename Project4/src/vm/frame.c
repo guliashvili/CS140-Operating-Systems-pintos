@@ -16,14 +16,12 @@
 
 static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp_pagedir_entry *user);
 static struct frame* frame_get_frame(uint32_t idx);
-static void frame_free_page_no_lock(void *kpage);
 static void frame_move_random_swap(void);
 
 static struct frame_map *frame_map;
 
 /* needs the lock */
 static struct frame* frame_get_frame(uint32_t idx){
-  ASSERT(frame_map->lock.holder == thread_current()); // Check if lock is held by current thread
   ASSERT(frame_map->num_of_frames >= 0);
   ASSERT(idx < (uint32_t)frame_map->num_of_frames);
   return frame_map->frames + idx;
@@ -34,7 +32,6 @@ static struct frame* frame_get_frame(uint32_t idx){
  * crashes if current frame is in use by someone else
  * needs the lock */
 static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp_pagedir_entry *user){
-  ASSERT(frame_map->lock.holder == thread_current()); // Check if lock is held by current thread
   struct frame *f = frame_get_frame(idx);
 
   ASSERT(f->MAGIC != FRAME_MAGIC);
@@ -44,33 +41,17 @@ static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp
 }
 
 /**
- * frees frame from frame and palloc structures.
- * Locks should be acquired.
- * @param kpage
- */
-static void frame_free_page_no_lock(void *kpage){
-  ASSERT(frame_map->lock.holder == thread_current()); // Check if lock is held by current thread
-  uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
-  ASSERT(idx != UINT32_MAX);
-  struct frame *f = frame_get_frame(idx);
-  f->MAGIC = -1;
-  f->user = NULL;
-
-  palloc_free_page(kpage);
-}
-/**
  * initilizes frame internal structures in the kernel pool.
  * @param pages_cnt
  */
 void frame_map_init(int pages_cnt){
   static int install = 0;
   if(install++ > 1) PANIC("frame is installed more then once");
-  frame_map = malloc(sizeof(struct frame_map));
+  frame_map = (struct frame_map *)malloc(sizeof(struct frame_map));
   ASSERT(frame_map);
-  frame_map->frames = malloc(sizeof(struct frame) * pages_cnt);
+  frame_map->frames = (struct frame *)malloc(sizeof(struct frame) * pages_cnt);
   ASSERT(frame_map->frames);
 
-  lock_init(&frame_map->lock);
   frame_map->num_of_frames = pages_cnt;
 }
 
@@ -79,7 +60,6 @@ void frame_map_init(int pages_cnt){
  * randomly moves the frame to swap(if there exists one without the prohibition)
  */
 static void frame_move_random_swap(void){
-  ASSERT(frame_map->lock.holder == thread_current()); // Check if lock is held by current thread
   int i;for(i = 0; i < frame_map->num_of_frames; i++) ASSERT(frame_map->frames[i].MAGIC == FRAME_MAGIC);
   struct frame *f;
 
@@ -121,7 +101,7 @@ static void frame_move_random_swap(void){
   }
   struct supp_pagedir_entry *user = f->user;
 
-  frame_free_page_no_lock(kpage);
+  frame_free_page(kpage);
   pagedir_clear_page(*user->pagedir, user->upage);
 
   lock_release(lock);
@@ -140,24 +120,18 @@ void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) {
 
   flags |= PAL_THROUGH_FRAME;
 
-
   void *page = palloc_get_page(flags);
 
-  lock_acquire(&frame_map->lock);
-
-  if(page == NULL){ // no free page available
+  while(page == NULL){ // no free page available
     //caller function should have acquired user lock,
     // and frame free function will acquire another  supp_pagedir_entry lock, but deadlock won't happen,
     // first supp_pagedir_entry is without frame and second is with frame.
     frame_move_random_swap();
     page = palloc_get_page(flags);
-    ASSERT(page);
   }
   uint32_t idx = palloc_page_to_idx(flags, page);
 
   frame_init_single(idx, flags, user);
-
-  lock_release(&frame_map->lock);
 
   return page;
 }
@@ -166,17 +140,20 @@ void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) {
  * frees the frame slot of address kpage
  */
 void frame_free_page (void *kpage){
-  lock_acquire(&frame_map->lock);
+  //supp_pagedir_entry having kpage is locked
+  uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
+  ASSERT(idx != UINT32_MAX);
+  struct frame *f = frame_get_frame(idx);
+  f->MAGIC = -1;
+  f->user = NULL;
 
-  frame_free_page_no_lock(kpage);
-
-  lock_release(&frame_map->lock);
+  palloc_free_page(kpage);
 }
 
 
 
 void frame_set_prohibit(void *kpage, bool prohibit){
-  ASSERT(frame_map->lock.holder == thread_current());
+  //supp_pagedir_entry having kpage is locked
   uint32_t idx = palloc_page_to_idx(PAL_USER | PAL_THROUGH_FRAME, kpage);
   ASSERT(idx != UINT32_MAX);
   struct frame *f = frame_get_frame(idx);
@@ -184,6 +161,3 @@ void frame_set_prohibit(void *kpage, bool prohibit){
   f->prohibit_cache = prohibit;
 }
 
-struct lock *frame_get_lock(void){
-  return &frame_map->lock;
-}

@@ -34,7 +34,6 @@ struct supp_pagedir2{
 
 struct supp_pagedir{
     struct supp_pagedir2 *entries[1<<PDBITS];
-    struct lock lock;
 };
 
 struct supp_pagedir_entry **supp_pagedir_lookup(struct supp_pagedir *table, const void *vaddfr, bool create);
