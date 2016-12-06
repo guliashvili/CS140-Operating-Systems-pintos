@@ -239,7 +239,7 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
   if(prohibit) f->flags |= PAL_PROHIBIT_CACHE;
   else if(!prohibit) f->flags &= ~PAL_PROHIBIT_CACHE;
 
-  lock_acquire2(&f->lock);
+  lock_acquire(&f->lock);
 
   ASSERT(thread_current()->pagedir);
   void * kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));

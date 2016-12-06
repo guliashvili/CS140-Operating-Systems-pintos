@@ -24,7 +24,7 @@ struct frame_map{
     struct list ordered_list;
 };
 
-struct lock* get_frame_lock();
+struct lock* get_frame_lock(void);
 void frame_map_init(int pages_cnt);
 void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user);
 void frame_free_page_no_lock (void *kpage);

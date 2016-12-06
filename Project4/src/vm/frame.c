@@ -18,7 +18,7 @@ static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp
 static struct frame* frame_get_frame(uint32_t idx);
 static void frame_second_chance_algorithm(void);
 static void add_frame_to_eviction_struct(struct frame *f);
-static struct frame *get_next_frame_to_test();
+static struct frame *get_next_frame_to_test(void);
 static void remove_frame_from_eviction_struct(struct frame *f);
 
 static struct frame_map *frame_map;
@@ -35,11 +35,8 @@ static void add_frame_to_eviction_struct(struct frame *f){
   lock_release(&frame_map->list_lock);
 }
 
-static struct frame *get_next_frame_to_test(){
+static struct frame *get_next_frame_to_test(void){
   lock_acquire(&frame_map->list_lock);
-
-  ASSERT(list_size(&frame_map->ordered_list) > 0);
-
 
   struct frame *ret = list_entry(list_begin(&frame_map->ordered_list), struct frame, link);
   list_remove(&ret->link);
@@ -104,8 +101,12 @@ static void frame_second_chance_algorithm(void){
       if (f->prohibit_cache) {
         lock_release(lock);
       } else{
-        if(pagedir_is_accessed(*f->user->pagedir, f->user->upage)){
+        if(pagedir_is_accessed(*f->user->pagedir, f->user->upage)
+                || pagedir_is_accessed(*f->user->pagedir,
+                                       pagedir_get_page(*f->user->pagedir, f->user->upage))){
           pagedir_set_accessed(*f->user->pagedir, f->user->upage, false);
+          pagedir_set_accessed(*f->user->pagedir,
+                               pagedir_get_page(*f->user->pagedir, f->user->upage), false);
           lock_release(lock);
         }else
           break;
@@ -150,7 +151,7 @@ static void frame_second_chance_algorithm(void){
   frame_free_page_no_lock(kpage);
   pagedir_clear_page(*user->pagedir, user->upage);
 
-  lock_release2(lock);
+  lock_release(lock);
 
 }
 
@@ -204,11 +205,9 @@ void frame_free_page_no_lock (void *kpage){
   palloc_free_page(kpage);
 }
 
-struct lock* get_frame_lock(){
+struct lock* get_frame_lock(void){
   return &frame_map->lock;
 }
-
-
 
 void frame_set_prohibit(void *kpage, bool prohibit){
   //supp_pagedir_entry having kpage is locked
