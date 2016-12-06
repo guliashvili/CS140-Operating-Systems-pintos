@@ -120,7 +120,6 @@ kill (struct intr_frame *f)
     }
 }
 bool stack_resized(uint32_t esp, void *p) {
-
   if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
     /* I'm not scared of parallelism, virtually create will not acquire frame, so no other thread cares this
      virtual create changes only holder thread structure */

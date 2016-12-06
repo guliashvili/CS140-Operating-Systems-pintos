@@ -169,10 +169,9 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
   }
 }
 
-/* Marks user virtual page UPAGE "not present" in page
-   directory PD.  Later accesses to the page will fault.  Other
-   bits in the page table entry are preserved.
-   UPAGE need not be mapped. */
+/*
+ * Maps upage to NULL,  PTE_P wil necessarily be 0
+ * */
 void
 pagedir_clear_page (uint32_t *pd, void *upage)
 {
@@ -183,9 +182,9 @@ pagedir_clear_page (uint32_t *pd, void *upage)
 
 
   pte = lookup_page (pd, upage, false);
-  if (pte != NULL && (*pte & PTE_P) != 0)
+  if (pte != NULL)
     {
-      *pte &= ~PTE_P;
+      *pte = 0;
       invalidate_pagedir (pd);
     }
 }

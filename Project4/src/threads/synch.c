@@ -207,16 +207,7 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
 }
-void
-lock_acquire2 (struct lock *lock)
-{
-  ASSERT (lock != NULL);
-  ASSERT (!intr_context ());
-  ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
-}
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
    thread.
@@ -245,6 +236,7 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock)
 {
+  ASSERT(lock->semaphore.MAGIC1 == SYNCH_SEMA_MAGIC);
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 

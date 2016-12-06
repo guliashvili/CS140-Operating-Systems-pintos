@@ -72,7 +72,7 @@ int mmap_sys(int fd, void *vaddr, int s, int len, int flags){
 
 bool mmap_discard(struct supp_pagedir_entry *e){
   uint32_t *pagedir = *e->pagedir;
-  if(pagedir_is_dirty(pagedir, e->upage)){
+  if(pagedir_is_dirty(pagedir, e->upage) || pagedir_is_dirty(pagedir, pagedir_get_page(pagedir, e->upage))){
     if(e->flags & PAL_DONT_SYNC_ON_DISK)
       return 0;
     pagedir_set_dirty(pagedir, e->upage, false);
