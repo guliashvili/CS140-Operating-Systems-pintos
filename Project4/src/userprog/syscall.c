@@ -100,7 +100,7 @@ syscall_init (void) {
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int sys_call_id = ITH_ARG(f, 0, int, false, false, "sys_call_id");
+  int sys_call_id = ITH_ARG(f, 0, int, false, true, "sys_call_id");
   uint32_t ret = 23464464;
   switch (sys_call_id){
     /* Projects 2 and later. */
@@ -111,8 +111,7 @@ syscall_handler (struct intr_frame *f)
       exit(ITH_ARG(f, 1, int, false, false, "EXIT1"), "Exit syscall");
       break;
     case SYS_EXEC:                   /* Start another process. */
-      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, true, "EXEC1"));
-      ITH_ARG_POINTER(f, 1, const char *, -1, false, false, "EXEC1*");
+      ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, false, "EXEC1"));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
       ret = wait(ITH_ARG(f, 1, int, false, false,"WAIT1"));
