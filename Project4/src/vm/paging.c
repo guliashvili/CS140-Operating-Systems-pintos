@@ -21,7 +21,6 @@
 #include "../lib/string.h"
 #include "../userprog/files.h"
 
-static void supp_pagedir_destroy_page_no_lock(struct supp_pagedir *spd, uint32_t *pd, void *upage);
 static bool supp_pagedir_really_create(struct supp_pagedir_entry *el);
 static void paging_activate_no_lock(struct supp_pagedir_entry *f);
 /**
@@ -184,7 +183,6 @@ static bool supp_pagedir_really_create(struct supp_pagedir_entry *el){
 
 
 void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
-  lock_acquire(get_frame_lock());
   int i,j;
   for(i = 0; i < (1<<PDBITS); i++){
     struct supp_pagedir2 *spd2 = spd->entries[i];
@@ -192,20 +190,14 @@ void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
     for(j = 0; j < (1<<PTBITS); j++){
       struct supp_pagedir_entry *e = spd2->entries[j];
       if(e == NULL) continue;
-      supp_pagedir_destroy_page_no_lock(spd, pd, e->upage);
+      supp_pagedir_destroy_page(spd, pd, e->upage);
     }
     free(spd2);
   }
   free(spd);
-  lock_release(get_frame_lock());
 }
 
 void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage){
-  lock_acquire(get_frame_lock());
-  supp_pagedir_destroy_page_no_lock(spd, pd, upage);
-  lock_release(get_frame_lock());
-}
-static void supp_pagedir_destroy_page_no_lock(struct supp_pagedir *spd, uint32_t *pd, void *upage){
   ASSERT(pd);ASSERT(spd);
 
   struct supp_pagedir_entry **elem = supp_pagedir_lookup(spd, upage, false);
@@ -222,13 +214,18 @@ static void supp_pagedir_destroy_page_no_lock(struct supp_pagedir *spd, uint32_t
   ASSERT(pd);
   void *kpage = pagedir_get_page(pd, upage);
 
-  if(kpage)
+  bool frame_is_locked = false;
+  if(kpage) {
+    frame_is_locked = true;
+    lock_acquire(get_frame_lock());
     frame_free_page_no_lock(kpage);
-
+  }
   free(el);
   (*elem) = NULL;
 
   pagedir_clear_page(pd, upage);
+
+  if(frame_is_locked) lock_release(get_frame_lock());
 }
 
 void supp_pagedir_set_prohibit(void *upage, bool prohibit){
