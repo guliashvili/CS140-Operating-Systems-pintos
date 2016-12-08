@@ -142,7 +142,7 @@ pagedir_get_page (uint32_t *pd, const void *uaddr)
   }
 }
 
-void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
+void pageir_set_kernel_access(uint32_t *pd, const void *uaddr, bool kernelonly){
   uint32_t *pte;
   ASSERT(pd);
   ASSERT (uaddr);
@@ -155,8 +155,8 @@ void pageir_set_write_access(uint32_t *pd, const void *uaddr, bool readonly){
   ASSERT(*pte);
   if (pte != NULL && (*pte & PTE_P) != 0)
   {
-    if(readonly) (*pte) &= ~PTE_W;
-    else (*pte) |= PTE_W;
+    if(kernelonly) (*pte) &= ~PTE_U;
+    else (*pte) |= PTE_U;
 
     invalidate_pagedir (pd);
   }

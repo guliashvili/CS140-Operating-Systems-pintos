@@ -198,6 +198,7 @@ void supp_pagedir_destroy(struct supp_pagedir *spd, uint32_t *pd){
 }
 
 void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upage){
+  lock_acquire(get_frame_lock());
   ASSERT(pd);ASSERT(spd);
 
   struct supp_pagedir_entry **elem = supp_pagedir_lookup(spd, upage, false);
@@ -215,17 +216,15 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
   void *kpage = pagedir_get_page(pd, upage);
 
   bool frame_is_locked = false;
-  if(kpage) {
-    frame_is_locked = true;
-    lock_acquire(get_frame_lock());
+  if(kpage)
     frame_free_page_no_lock(kpage);
-  }
+
   free(el);
   (*elem) = NULL;
 
   pagedir_clear_page(pd, upage);
 
-  if(frame_is_locked) lock_release(get_frame_lock());
+  lock_release(get_frame_lock());
 }
 
 void supp_pagedir_set_prohibit(void *upage, bool prohibit){

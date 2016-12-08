@@ -90,11 +90,10 @@ void frame_map_init(int pages_cnt){
  */
 static void frame_second_chance_algorithm(void){
   ASSERT(frame_map->lock.holder == thread_current());
-  int i;//for(i = 0; i < frame_map->num_of_frames; i++) ASSERT(frame_map->frames[i].MAGIC == FRAME_MAGIC);
   struct frame *f;
 
   struct lock *lock;
-  for(i = 0;i < 100000; i++){
+  while(1){
     f = get_next_frame_to_test();
     ASSERT(f->MAGIC == FRAME_MAGIC);
     if(lock_try_acquire(lock = &f->user->lock)) {
@@ -116,7 +115,6 @@ static void frame_second_chance_algorithm(void){
     }
 
   }
-  ASSERT(i < 100000);
 
   /**
    * deadlock is not gonna happen. I'm not locking in order,
@@ -149,10 +147,10 @@ static void frame_second_chance_algorithm(void){
   struct supp_pagedir_entry *user = f->user;
 
   frame_free_page_no_lock(kpage);
+  ASSERT(*user->pagedir != NULL);
   pagedir_clear_page(*user->pagedir, user->upage);
 
   lock_release(lock);
-
 }
 
 /**
