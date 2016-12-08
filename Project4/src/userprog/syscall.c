@@ -132,13 +132,13 @@ syscall_handler (struct intr_frame *f)
     case SYS_FILESIZE:               /* Obtain a file's size. */
       ret = filesize_sys(ITH_ARG(f, 1, int, false, false, "FILESIZE1"));
       break;
-    case SYS_READ:                   /* Read from a file. */ // todo
+    case SYS_READ:                   /* Read from a file. */
       ret = read_sys_wrapper(ITH_ARG(f, 1, int, false, false,"READ1"),
                  ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33"), true, true,"READ2"),
                  ITH_ARG(f, 3, unsigned int, false, false, "READ3"));
       ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33*"), false, false,"READ2*");
       break;
-    case SYS_WRITE:                  /* Write to a file. */ // todo
+    case SYS_WRITE:                  /* Write to a file. */
       ret = write_sys(ITH_ARG(f, 1, int, false, false,"WRITE1"),
                   ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, false,"WRITE33"), true, true,"WRITE2"),
                   ITH_ARG(f, 3, unsigned int, false, false,"WRITE3"));

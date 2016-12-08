@@ -6,11 +6,10 @@
 
 ---- GROUP ----
 
->> Fill in the names and email addresses of your group members.
-
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+ლუკა მაჭარაძე <lmach14@freeuni.edu.ge>
+გივი ბერიძე <gberi14@freeuni.edu.ge>
+გიორგი გულიაშვილი<gguli13@freeuni.edu.ge>
+თორნიკე ჟიჟიაშვილი<tzhiz14@freeuni.edu.ge>
 
 ---- PRELIMINARIES ----
 
@@ -29,6 +28,63 @@ FirstName LastName <email@domain.example>
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct swap_map{
+    struct lock lock;
+    struct bitmap *map;
+};
+მაპი დაკავებული სლოტებისთვის(თითო ბიტი  თითო PAGE_SIZE ზე მიუთითებს).
+ლოქი სვაპიდან წაკითხვა ჩაწერის დასალოქად და ბიტმეპის scan_and_flipისთვის.
+
+struct frame{
+    struct supp_pagedir_entry *user;
+    bool prohibit_cache;
+    struct list_elem link;
+    int MAGIC;
+};
+ფიზიკურად არსებული ფეიჯის სტრუქტურა.
+მიმთითებელი დამათებით ფეიჯდირზე, აკრძალულია თუარა სვაპში გადატანა, ფეიჯ ევიქშენის ლისტში ჩასაწერად ლინკი, და მეჯიქი რომელიც მხოლოდ არსებობისაა FRAME_MAGIC ის ტოლი.
+
+struct frame_map{
+    int num_of_frames; // ფრეიმების რაოდენობა
+    struct frame *frames; //ფრეიმების ერეიზე მიმთითებელი
+    struct lock lock; // ფრეიმების გამოყოფისას ჩამკეტი, (ისეთი როგორიც პალოქს აქვს)
+
+    struct lock list_lock; // ფეიჯ ევიქშენის ლისტის ლოქი
+    struct list ordered_list; // ფეიჯ ევიქშენის ლისტი სადაც ჰედი არის ფოინთერი
+};
+
+
+struct supp_pagedir2{
+    struct supp_pagedir_entry *entries[1<<PTBITS];
+};
+
+struct supp_pagedir{
+    struct supp_pagedir2 *entries[1<<PDBITS];
+};
+pagedir ისნაირი 2 ჩადგმული ჰეშმეპი ოღონდ სტრუქტურებად
+
+struct supp_pagedir_entry{
+    struct lock lock;  // კონკრეტულ ფეიჯს იცავს მასზე მუშაობისას არ გადავიდეს სვაპში
+    enum palloc_flags flags; // ფლეგები
+    uint32_t **pagedir; // მფლობელი სრედის ფეიჯდირის მიმთითებლის მიმთითებელი
+
+    block_sector_t sector_t; // სვაპის სლოტის ადგილი სადაც წერია ან -1
+    int fd; // ფაილის მისამართი სადაც წერია ან -1
+    int s; // ფაილში დასაწყისი ან -1
+    int e; // ფაილში ბოლო ან -1
+
+    void *upage; // იუზერისთვის რა ფოინთერზე იწყება ეს ფეიჯი
+    int MAGIC; // თუ არსებობს უდრის PAGING_MAGIC.
+};
+
+enum palloc_flags
+  {
+...
+    PAL_THROUGH_FRAME = 16, // იმისათვის რომ დავრწმუნებულიყავი კერნელი საიდანმე პალოქით პირდაპირ არ იღებდა ფეიჯებს იუზერ სფეისიდან, პალოქი იქრაშება თუ იუზერსფეისში ოპერაციას ამ ფლეგის გარეშე თხოვენ, ამ ფლეგს ანიჭებს frame.c
+    PAL_PROHIBIT_CACHE = 32,  // არ გადავიდეს სვაპში ან ფაილში(არ გაქრეს ფიზიკურად რამიდან)
+    PAL_DONT_SYNC_ON_DISK = 64 // ფაილზე აქვს მიმთითებელი მაგრამ არ გადავწეროთ შეცვილილი ფაილს
+};
 
 ---- ALGORITHMS ----
 
@@ -145,11 +201,15 @@ the quarter.
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
 
+I will never ever blame Windows programmers for BLUE SCREEN PROBLEM anymore.
+
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+არსებულ ფუნქციონალზე (pte vaddr pagedir) ვინმე რო ყვებოდეს უფრო ჩქარა აითვისებენ.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
 
+Naah.
 >> Any other comments?

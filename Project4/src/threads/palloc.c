@@ -152,8 +152,6 @@ palloc_free_multiple (void *pages, size_t page_cnt)
     pool = &kernel_pool;
   else if (page_from_pool (&user_pool, pages))
     pool = &user_pool;
-  else
-    NOT_REACHED ();
 
   page_idx = pg_no (pages) - pg_no (pool->base);
 

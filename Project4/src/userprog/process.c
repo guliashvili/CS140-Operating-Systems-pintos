@@ -275,13 +275,11 @@ load (char *file_name_strtok,char **strtok_data, void (**eip) (void), void **esp
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) {
-    NOT_REACHED();
     goto done;
   }
 
   t->supp_pagedir = supp_pagedir_init();
   if(t->supp_pagedir == NULL) {
-    NOT_REACHED();
     goto done;
   }
   process_activate ();

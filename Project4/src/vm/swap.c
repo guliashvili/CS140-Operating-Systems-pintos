@@ -28,15 +28,11 @@ block_sector_t swap_write(void *kpage){
 
   size_t t = bitmap_scan_and_flip(s_map->map, 0, 1, 0);
   if(t == BITMAP_ERROR) {
-    NOT_REACHED();// TODO GIO MUST for DEBUGGING
     lock_release(&s_map->lock);
     return BLOCK_SECTOR_T_ERROR;
   }
   block_sector_t start = t * NUM_OF_HARD_DISK_SEGMENT;
   struct block *swap = block_get_role(BLOCK_SWAP);
-  if(start + NUM_OF_HARD_DISK_SEGMENT >  block_size(swap) ){
-    PANIC("%d %d %d",start, NUM_OF_HARD_DISK_SEGMENT, block_size(swap));
-  }
 
   block_sector_t i;
   for(i = start; i < start + NUM_OF_HARD_DISK_SEGMENT; i++, kpage += BLOCK_SECTOR_SIZE) {
@@ -53,17 +49,19 @@ void swap_read(block_sector_t t, void *vaddr_p){
   ASSERT(vaddr_p == NULL || is_user_vaddr(vaddr_p));
 
   ASSERT(t % NUM_OF_HARD_DISK_SEGMENT == 0);
-  lock_acquire(&s_map->lock);
   ASSERT(bitmap_all(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 1));
-  bitmap_set(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 0);
 
   struct block *swap = block_get_role(BLOCK_SWAP);
   block_sector_t i;
   if(vaddr_p != NULL) {
+
+    lock_acquire(&s_map->lock);
     for (i = t; i < t + NUM_OF_HARD_DISK_SEGMENT; i++, vaddr_p += BLOCK_SECTOR_SIZE) {
       ASSERT(thread_current()->pagedir);
       block_read(swap, i, pagedir_get_page(thread_current()->pagedir, vaddr_p));
     }
+    lock_release(&s_map->lock);
   }
-  lock_release(&s_map->lock);
+
+  bitmap_set(s_map->map, t / NUM_OF_HARD_DISK_SEGMENT, 0);
 }
