@@ -141,7 +141,7 @@ static void frame_second_chance_algorithm(void){
   }else {
     if(f->user->fd == -1 && (f->user->flags & PAL_ZERO) &&
             !pagedir_is_dirty(*f->user->pagedir, f->user->upage) &&
-            !pagedir_is_dirty(*f->user->pagedir, pagedir_get_page(*f->user->pagedir, f->user->upage))){
+            !pagedir_is_dirty(*f->user->pagedir, kpage)){
 
     }else{
       f->user->sector_t = swap_write(kpage);
