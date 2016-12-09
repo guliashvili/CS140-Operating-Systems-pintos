@@ -89,19 +89,14 @@
 /* List element. */
 struct list_elem
 {
-    int MAGIC2;
     struct list_elem *prev;     /* Previous list element. */
     struct list_elem *next;     /* Next list element. */
-    int MAGIC1;
 };
-#define LIST_MAGIC 23532532
 /* List. */
 struct list
 {
-    int MAGIC2;
     struct list_elem head;      /* List head. */
     struct list_elem tail;      /* List tail. */
-    int MAGIC1;
 };
 
 /* Converts pointer to list element LIST_ELEM into a pointer to
@@ -110,8 +105,8 @@ struct list
    of the list element.  See the big comment at the top of the
    file for an example. */
 #define list_entry(LIST_ELEM, STRUCT, MEMBER)           \
-        ((STRUCT *) ((uint8_t *) &(LIST_ELEM)->MAGIC1     \
-                     - offsetof (STRUCT, MEMBER.MAGIC1)))
+        ((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
+                     - offsetof (STRUCT, MEMBER.next)))
 
 /* List initialization.
 
@@ -123,8 +118,8 @@ struct list
    or with an initializer using LIST_INITIALIZER:
 
        struct list my_list = LIST_INITIALIZER (my_list); */
-#define LIST_INITIALIZER(NAME) {LIST_MAGIC, {LIST_MAGIC, NULL, &(NAME).tail,LIST_MAGIC }, \
-                                 {LIST_MAGIC, &(NAME).head, NULL,LIST_MAGIC }, LIST_MAGIC}
+#define LIST_INITIALIZER(NAME) {{NULL, &(NAME).tail}, \
+                                 {&(NAME).head, NULL}}
 void list_init (struct list *);
 int is_list(struct list *list);
 

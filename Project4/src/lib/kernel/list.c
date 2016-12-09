@@ -39,8 +39,6 @@ static inline bool
 is_head (struct list_elem *elem)
 {
   if(elem == NULL) return 0;
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   return elem->prev == NULL && elem->next != NULL;
 }
 
@@ -50,8 +48,6 @@ static inline bool
 is_interior (struct list_elem *elem)
 {
   if(elem == NULL) return 0;
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   return elem->prev != NULL && elem->next != NULL;
 }
 
@@ -60,12 +56,10 @@ static inline bool
 is_tail (struct list_elem *elem)
 {
   if(elem == NULL) return 0;
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   return elem->prev != NULL && elem->next == NULL;
 }
 int is_list(struct list *list){
-  return list != NULL && list->MAGIC2 == LIST_MAGIC && list->MAGIC1 == LIST_MAGIC;
+  return list != NULL;
 }
 
 /* Initializes LIST as an empty list. */
@@ -73,12 +67,10 @@ void
 list_init (struct list *list)
 {
   ASSERT (list != NULL);
-  list->head.MAGIC1 = list->head.MAGIC2 = list->tail.MAGIC1 = list->tail.MAGIC2 = LIST_MAGIC;
   list->head.prev = NULL;
   list->head.next = &list->tail;
   list->tail.prev = &list->head;
   list->tail.next = NULL;
-  list->MAGIC1 = list->MAGIC2 = LIST_MAGIC;
 }
 
 /* Returns the beginning of LIST.  */
@@ -86,8 +78,6 @@ struct list_elem *
 list_begin (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return list->head.next;
 }
 
@@ -98,8 +88,6 @@ struct list_elem *
 list_next (struct list_elem *elem)
 {
   ASSERT (is_head (elem) || is_interior (elem));
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   return elem->next;
 }
 
@@ -112,8 +100,6 @@ struct list_elem *
 list_end (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return &list->tail;
 }
 
@@ -123,8 +109,6 @@ struct list_elem *
 list_rbegin (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return list->tail.prev;
 }
 
@@ -135,8 +119,6 @@ struct list_elem *
 list_prev (struct list_elem *elem)
 {
   ASSERT (is_interior (elem) || is_tail (elem));
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   return elem->prev;
 }
 
@@ -157,8 +139,6 @@ struct list_elem *
 list_rend (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return &list->head;
 }
 
@@ -177,8 +157,6 @@ struct list_elem *
 list_head (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return &list->head;
 }
 
@@ -187,8 +165,6 @@ struct list_elem *
 list_tail (struct list *list)
 {
   ASSERT (list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return &list->tail;
 }
 
@@ -201,12 +177,6 @@ list_insert (struct list_elem *before, struct list_elem *elem)
 {
   ASSERT (is_interior (before) || is_tail (before));
   ASSERT (elem != NULL);
-  elem->MAGIC1 = elem->MAGIC2 = LIST_MAGIC;
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
-
-  ASSERT(before->MAGIC1 == LIST_MAGIC);
-  ASSERT(before->MAGIC2 == LIST_MAGIC);
 
 
   elem->prev = before->prev;
@@ -286,10 +256,7 @@ list_push_back (struct list *list, struct list_elem *elem)
 struct list_elem *
 list_remove (struct list_elem *elem)
 {
-  ASSERT(elem->MAGIC1 == LIST_MAGIC);
-  ASSERT(elem->MAGIC2 == LIST_MAGIC);
   ASSERT (is_interior (elem));
-  elem->MAGIC1 = elem->MAGIC2 = -1;
   elem->prev->next = elem->next;
   elem->next->prev = elem->prev;
   return elem->next;
@@ -301,8 +268,6 @@ struct list_elem *
 list_pop_front (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *front = list_front (list);
   list_remove (front);
   return front;
@@ -314,8 +279,6 @@ struct list_elem *
 list_pop_back (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *back = list_back (list);
   list_remove (back);
   return back;
@@ -327,8 +290,6 @@ struct list_elem *
 list_front (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   ASSERT (!list_empty (list));
   return list->head.next;
 }
@@ -339,8 +300,6 @@ struct list_elem *
 list_back (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   ASSERT (!list_empty (list));
   return list->tail.prev;
 }
@@ -351,8 +310,6 @@ size_t
 list_size (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *e;
   size_t cnt = 0;
 
@@ -366,8 +323,6 @@ bool
 list_empty (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   return list_begin (list) == list_end (list);
 }
 
@@ -385,8 +340,6 @@ void
 list_reverse (struct list *list)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   if (!list_empty (list))
   {
     struct list_elem *e;
@@ -467,8 +420,6 @@ void
 list_sort (struct list *list, list_less_func *less, void *aux)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   size_t output_run_cnt;        /* Number of runs output in current pass. */
 
   ASSERT (list != NULL);
@@ -512,8 +463,6 @@ list_insert_ordered (struct list *list, struct list_elem *elem,
                      list_less_func *less, void *aux)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *e;
 
   ASSERT (list != NULL);
@@ -535,8 +484,6 @@ list_unique (struct list *list, struct list *duplicates,
              list_less_func *less, void *aux)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *elem, *next;
 
   ASSERT (list != NULL);
@@ -556,8 +503,6 @@ list_unique (struct list *list, struct list *duplicates,
       elem = next;
 }
 struct list_elem *list_find(struct list *list,list_equals_func* equals, void *aux){
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *e;
   for(e = list_begin(list); e != list_end(list); e = list_next(e)){
     if(equals(e, aux)) return e;
@@ -572,8 +517,6 @@ struct list_elem *
 list_max (struct list *list, list_less_func *less, void *aux)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *max = list_begin (list);
   if (max != list_end (list))
   {
@@ -594,8 +537,6 @@ struct list_elem *
 list_min (struct list *list, list_less_func *less, void *aux)
 {
   ASSERT(list != NULL);
-  ASSERT(list->MAGIC1 == LIST_MAGIC);
-  ASSERT(list->MAGIC2 == LIST_MAGIC);
   struct list_elem *min = list_begin (list);
   if (min != list_end (list))
   {

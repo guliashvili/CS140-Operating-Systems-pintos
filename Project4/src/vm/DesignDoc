@@ -29,12 +29,6 @@
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-struct swap_map{
-    struct lock lock;
-    struct bitmap *map;
-};
-მაპი დაკავებული სლოტებისთვის(თითო ბიტი  თითო PAGE_SIZE ზე მიუთითებს).
-ლოქი სვაპიდან წაკითხვა ჩაწერის დასალოქად და ბიტმეპის scan_and_flipისთვის.
 
 struct frame{
     struct supp_pagedir_entry *user;
@@ -78,6 +72,13 @@ struct supp_pagedir_entry{
     int MAGIC; // თუ არსებობს უდრის PAGING_MAGIC.
 };
 
+struct thread
+{
+...
+    struct supp_pagedir *supp_pagedir; //ყველა სრედს თავისი საფლიმენთალ ფეიჯდირის ისამართი ექნება
+...
+};
+
 enum palloc_flags
   {
 ...
@@ -86,24 +87,38 @@ enum palloc_flags
     PAL_DONT_SYNC_ON_DISK = 64 // ფაილზე აქვს მიმთითებელი მაგრამ არ გადავწეროთ შეცვილილი ფაილს
 };
 
+
 ---- ALGORITHMS ----
 
 >> A2: In a few paragraphs, describe your code for accessing the data
 >> stored in the SPT about a given page.
+vm/paging.c იმპლემენტირებს struct supp_pagedir_entry **supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create);. თუკი გვინდა საფლიმენთალ ინფორმაციის მიღება ან შეცვლა ან შექმნა ამ ფუნქცას გამოვიძახებთ, სადაც table = სრედის საფლიმენთალ ფეიჯდირის ფოინთერს, upage არის იუზერის ვირტუალური მისამართი, create იქნება true თუ შექმნაც გვინდა. აბრუნებს ენთრის ფოინთერის ფოინთერს, ამის საშუალების მინიჭებაც შეგვეძლება.
 
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
+ორივეგან ვამოწმებ და ვასფუთავებ სიბინძურეს და ექსესდს.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
+ყველა ფეიჯს აქვს თავისი ლოქი, ფეიჯ ფოლთში შესვლისას ვლოქავთ ამ ლოქს. დედლოქები არ მოხდენის დამტკიცებისთვის იმ ფაქტის ცოდნა დაგვჭირდება, რომ ფეიჯ ფოლთში შესვლისას რა ფეიჯის ლოქსაც ვლოქავთ არ არის ჩვეულებრივი ფეიჯი, ეს არის უფრეიმო ფეიჯი.
+
+როცა სვაპში უნდა გადავუტანოთ ფრეიმი იმ შემთხვევაზე კითხვა შემდეგ არის, ამიტომ ამ ქეისს შემდეგ დავწერ.
+თუ თავისუფალი ფრეიმი არსებობს მოხდება შემდეგი, გამოვიძახებთ void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) vm/frame.c ფაილიდან, რომელიც დააბრუნებს კერნელ ვირტუალ ედრესს(რაზეც ფეიჯდირი უნდა დავმეპოთ). თვითონ frame_get_page არაფერს ლოქავს(როცა ფეიჯ ევიქშენი არ გვჭირდება) და პირდაპირ იძახებს palloc_get_page ს რომელიც თავის ლოქს ლოქავს(ეს კოდი არ შემიცვლია) ბიტმეპში პოულობს ერთცალ თავისუფალ ადგილს და აბრუნებს.
 
 ---- RATIONALE ----
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+
+ყველაფერი შევეცადე, მაქსიმალურად მარტივად დამეწერა.
+მაგალითად ფრეიმები არის უბრალო მასივი, ეს სინამდვილეში სხვანაირად(და უკეთესად) ვერც დაიწერებოდა, palloc შიც იგივეა გაკეთებული ფაქტობრივად ოღონდ იმათ მარტო დაკავებული დაუკავებელი აინტერესებდათ და ბიტმეპი ქონდათ, მე რაკი მეტ ინფორმაციას ვინახავ ამ სტრუქტურის მასივი მაქვს. თითოეულ ფრეიმს ასევე აუცილებლად ჭირდება თავისი მფლობელი ფეიჯის ცოდნა(ევიქშენისას შესაბამისად რომ შეცვალოს ის) და აკრძალულია თუ არა ამ ფრეიმის ევიქშენი(ამას კერნელ სფეისში ყოფნისას ვიყენებთ რადგან ფეიჯ ფოლთების იმედი ვერ გვექნება იქ და გვინდა გარანტია იმ ფეიჯის ფრეიმის ფიზიკურ არსებობაზე რომელსაც ვიყენებთ).
+
+supp_pagedir ის სტრუქტურაც იგივენაირადაა იმპლემენტირებული როგორც pagedir ის, ორი ჩადგმული ჰეშთეიბლი, სადაც ცალსახა მეპინგია. ოღონდ pageir ი თავის ინფორმაციას 32 ბაიტში ატევდა მე კი მთელი სტრუქტურის შენახვა მინდა.
+supp_pagedir_entry სტრუქტურაში ლოქი მჭირდება 
+
 
 		       PAGING TO AND FROM DISK
 		       =======================
@@ -113,6 +128,22 @@ enum palloc_flags
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct swap_map{
+    struct lock lock;
+    struct bitmap *map;
+};
+მაპი დაკავებული სლოტებისთვის(თითო ბიტი  თითო PAGE_SIZE ზე მიუთითებს).
+ლოქი სვაპიდან წაკითხვა ჩაწერის დასალოქად და ბიტმეპის scan_and_flipისთვის.
+
+struct supp_pagedir_entry{
+...
+    block_sector_t sector_t; // სვაპის სლოტის ადგილი სადაც წერია ან -1
+    int fd; // ფაილის მისამართი სადაც წერია ან -1
+    int s; // ფაილში დასაწყისი ან -1
+    int e; // ფაილში ბოლო ან -1
+...
+};
 
 ---- ALGORITHMS ----
 
@@ -167,6 +198,21 @@ enum palloc_flags
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct thread
+{
+...
+    struct list mmap_address; //სრედს აქვს ლისტი დამეპილი ფაილების სტრუქტურებზე
+...
+};
+
+struct mmap_info{
+    struct list_elem link; // სრედის mmap_address ლისტში ჩასაგდებად.
+    void *vaddr; // საიდან იწყება მეპინგი(ფეიჯის თავის მიმთითებელი)
+    int num_of_pages; // რამენი ფეიჯია დამეპილი
+    int id; // მეპის აიდი
+    int fd; // ღია ფაილის ნომერი
+};
 
 ---- ALGORITHMS ----
 

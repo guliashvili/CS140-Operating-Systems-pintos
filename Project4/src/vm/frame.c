@@ -133,6 +133,9 @@ static void frame_second_chance_algorithm(void){
   ASSERT(f->user->upage);
   ASSERT(f->user->sector_t == -1);
 
+  struct supp_pagedir_entry *user = f->user;
+
+
   if(f->user->fd != -1 && mmap_discard(f->user)){
 
   }else {
@@ -144,7 +147,6 @@ static void frame_second_chance_algorithm(void){
       f->user->sector_t = swap_write(kpage);
     }
   }
-  struct supp_pagedir_entry *user = f->user;
 
   frame_free_page_no_lock(kpage);
   ASSERT(*user->pagedir != NULL);

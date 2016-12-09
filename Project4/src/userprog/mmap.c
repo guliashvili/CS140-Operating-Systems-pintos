@@ -76,6 +76,7 @@ bool mmap_discard(struct supp_pagedir_entry *e){
     if(e->flags & PAL_DONT_SYNC_ON_DISK)
       return 0;
     pagedir_set_dirty(pagedir, e->upage, false);
+    pagedir_set_dirty(pagedir, pagedir_get_page(pagedir, e->upage), false);
     supp_pagedir_set_prohibit(e->upage, 1);
     seek_sys(e->fd, e->s);
     if(write_sys(e->fd, e->upage, e->e - e->s) != e->e - e->s){
