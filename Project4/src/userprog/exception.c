@@ -128,7 +128,7 @@ bool stack_resized(uint32_t esp, void *p) {
   struct supp_pagedir_entry **d = supp_pagedir_lookup(thread_current()->supp_pagedir, p, false);
   if(d && *d){
 
-    paging_activate(*d);
+    if(!paging_activate(*d)) exit(-1, "Access problems");
     return true;
   }
   return false;
@@ -197,14 +197,6 @@ page_fault (struct intr_frame *f)
   }
 
 
-  /**
-   * I could do pagedir_get_page but it would require locks in pagedir and it's slowing it down too much,
-   * so let's just use this flag. If mapping exists in pagedir then exception is correct.
-   */
-   if(!not_present)
-    exit(-1, "access rights violation.");
-
-
   /*
    * Moving something from frame to swap/file will just change reference to the external structure.
    */
@@ -219,7 +211,6 @@ page_fault (struct intr_frame *f)
   }
 
   // this supp_pagedir_entry has not acquired any frame for now, but will acquire one(probably).
-  paging_activate(*p);
-
+  if(!paging_activate(*p)) exit(-1, "access problems");
 }
 

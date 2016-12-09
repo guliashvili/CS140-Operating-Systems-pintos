@@ -84,10 +84,14 @@ supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create)
 }
 
 
-void paging_activate(struct supp_pagedir_entry *f){
+bool paging_activate(struct supp_pagedir_entry *f){
+  bool ret;
   lock_acquire(&f->lock); // if it has frame then it won't need to acquire any other suppagedirentry loc
+  if(pagedir_get_page(thread_current()->pagedir, f->upage)) ret = false;
+  else ret = true;
   paging_activate_no_lock(f);
   lock_release(&f->lock);
+  return ret;
 }
 /**
  * Makes page real. If it's not mapped to the palloc, maps it to one. Also recovers data if any.

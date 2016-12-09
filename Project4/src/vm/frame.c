@@ -101,8 +101,8 @@ static void frame_second_chance_algorithm(void){
         lock_release(lock);
       } else{
         if(pagedir_is_accessed(*f->user->pagedir, f->user->upage)
-                || pagedir_is_accessed(*f->user->pagedir,
-                                       pagedir_get_page(*f->user->pagedir, f->user->upage))){
+           || pagedir_is_accessed(*f->user->pagedir,
+                                  pagedir_get_page(*f->user->pagedir, f->user->upage))){
           pagedir_set_accessed(*f->user->pagedir, f->user->upage, false);
           pagedir_set_accessed(*f->user->pagedir,
                                pagedir_get_page(*f->user->pagedir, f->user->upage), false);
@@ -135,22 +135,26 @@ static void frame_second_chance_algorithm(void){
 
   struct supp_pagedir_entry *user = f->user;
 
+  uint32_t* pagedir_save = thread_current()->pagedir;
+  pagedir_activate(*user->pagedir);
+  pageir_set_kernel_access(*user->pagedir, user->upage, true);
 
-  if(f->user->fd != -1 && mmap_discard(f->user)){
+  if(user->fd != -1 && mmap_discard(user)){
 
   }else {
-    if(f->user->fd == -1 && (f->user->flags & PAL_ZERO) &&
-            !pagedir_is_dirty(*f->user->pagedir, f->user->upage) &&
-            !pagedir_is_dirty(*f->user->pagedir, kpage)){
+    if(user->fd == -1 && (user->flags & PAL_ZERO) &&
+       !pagedir_is_dirty(*user->pagedir, user->upage) &&
+       !pagedir_is_dirty(*user->pagedir, kpage)){
 
     }else{
       f->user->sector_t = swap_write(kpage);
     }
   }
 
+  pagedir_clear_page(*user->pagedir, user->upage);
+  pagedir_activate(pagedir_save);
   frame_free_page_no_lock(kpage);
   ASSERT(*user->pagedir != NULL);
-  pagedir_clear_page(*user->pagedir, user->upage);
 
   lock_release(lock);
 }
@@ -217,4 +221,3 @@ void frame_set_prohibit(void *kpage, bool prohibit){
   ASSERT(f);
   f->prohibit_cache = prohibit;
 }
-
