@@ -166,9 +166,9 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
+      supp_pagedir_destroy(spd, pd);
       cur->pagedir = NULL;
       pagedir_activate (NULL);
-      supp_pagedir_destroy(spd, pd);
       pagedir_destroy (pd);
     }
 }

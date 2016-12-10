@@ -157,7 +157,7 @@ struct supp_pagedir_entry{
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
-ვშლი სრედის ფეიჯდირიდან(ანუ აწი ვეღარ შეეხება, ან თუ შეეხება ფეიჯ ფოლთი ამოვარდება და დამელოდება რადგან მე იმის საფლიმენთალ ფეიჯდირ ენთრის ლოქი მაქ აღებული). გადამაქ მისი ფრეიმი სტეკში ან ფაილში, და შემდეგ ვიყენებ ჩემთვის.
+მფოლბელი სრედის ფეიჯდირში ჯერ მხოლოდ კერნელ ექსესის უფლებას ვაძლევ, შემდეგ ფრეზენთ ფლაგს ვუშლი საერთოდ. თუ დამეპილი ფეიჯი იყო და დაჭუჭყიანებულია არაა არსად არ ვინახავ, და დაჭუჭყიანებულია და PAL_DONT_SYNC_ON_DISK ფლეგი აქვს სვაპში ვინახავ, თუ ეს ფლეგი არ აქვს უკან ვწერ ფაილში, თუ დამეპილი არაა, თუ დაჭუჭყიანებული არაა და PAL_ZERO ფლაგითაა შექმნილი არსად ვწერ, თუარადა სვეპში ვწერ. სვეპში ჩაწერისას საფლიმენთალ ფეიჯდირ ენთრიში sector_t სახელის ცვლადში ვინახავ სვაპის ადგილს სადაც ის შევინახე.
 
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
@@ -171,22 +171,32 @@ struct supp_pagedir_entry{
 >> particular, explain how it prevents deadlock.  (Refer to the
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
+კერნელ მოუდში შევდივართ ორი ადგილიდან, ფეიჯ ფოლთიდან და სისთემ ქოლიდან. სისტემ ქოლი ჩადგმულ ლოქებს არ იღებს ან და ძალიან ტრივიალურია მათი არა დედლოქობა, ბოლო კითხვა ეხება ამას.
+ფეიჯ ფოლთიდან ხდება შემდეგი, ლოქების გარეშე ვამოწმებთ მინიმალურ შეზღუდვებს რასაც უნდა აკმაყოფილედეს ვალიდური რექვესთი, მაგალითად რომ იუზერ ედრესზე უნდა იყოს მოთხოვნა, ან სტეკის ჰეურისტიკა trues რომ აბრუნებს, და რომ supp_pagedir_entry არსებობს ამ მისამართისთვის.
+ამ ენთრის ვიღებთ ლოქის გარეშე, ეს სწორი იქნება რადგან, supp_pagedir_entry ს მხოლოდ მფლობელი სრედი ქმნის და შლის, ეს სრედი კი ახლა page_fault შია ასე რომ მშვიდად შეგვიძლია ეს ვქნათ. თუ ენთრი არ არსებობს ვალიდური მოთხოვნა არ ყოფილა.
+თუ არსებობს მაშინ მის ლოქს ავიღებთ(ყველა entry ს თავისი ლოქი აქვს), ამ ენთრის არ აქვს ფრეიმი, ამიტომ ასეთ ენთრიებს დავარქვათ უფრეიმო ენთრიები(ეს დაგვჭირდება არციკლური დალოქვის საჩვენებლად). ახლა მოხდება რამდენიმე რამ, 1) გამოვყოფთ ფრეიმს, ფრეიმის გამოყოფაზე ილოქება ფრეიმის გლობალური ლოქი, თუ თავისუფალი ფრეიმი არსებობს ავიღებთ, თუ არადა second chance ალგორითმით(თავისი სტრუქტურებიდან ამოსაღებად თავისი გლობალური ლოქი აქვს, რომელიც არ გვჭირდება სინამდვილეში) ვცდილობთ ვიპოვოთ გასაგდები ფრეიმი, აქაა აღსანიშნავი რომ ყველაფერი რასაც ვლოქავთ არის ფრეიმიანი entry და ჩვენ ჯერ კიდევ უფრეიმო ვართ, ასე რომ დედლოქი არ იქნება. ფრეიმ ევიქშენის შემდეგ, თუ საჭიროა სვაპიდან წავიკითხავთ(ილოქება სვაპის გლობალური ლოქი), თუ საჭიროა ფაილიდან(ილოქება ფაილის გლობალური ლოქი). არის კიდევ ერთი, როცა გვინდა სვაპში გადატანა ავკრძალოთ თავიანვე ვლოქავთ ფრეიმიან ენთრის, თუმცა მას სხვა არაფერის ლოქი არ ჭირდება, და ეს შემთხვევები არ გაგვიჩენს ციკლს ლოქების გრაფში.
 
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
 
+Proces P - მე, Process Q- ის
+როდესაც ავირჩევ გასაგდებ ფრეიმს, ვშვები შემდეგს, მის ფეიჯდირს გავიაქტიურებ მე(და ჩემსას შევინახავ), გასაგდები ფრეიმის upage ზე მოვნიშნავ რომ მხოლოდ კერნელს შეუძლია ფეიჯის გამოყენება(აწი ნებისმიერ წვდომაზე ამოვარდება ფეიჯფოლთი(და დაიბლოკება რადგან ამ ფეიჯის ლოქი მე მაქ აღებული) და მისი აღარ მეშინია). ჩვეულებრივი ლოგიკით გადავიტან სვაპში ან ფაილში. ფეიჯის მისამართს გავასუფთავებ(&=~PTE_P), ჩემ ძველ ფეიჯდირს გავიაქტიურებ.
+
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
+ფეიჯ ფოლთში შესვლისას, ფეიჯის შესაბამის ლოქს ვიღებთ, ასე რომ თუ სხვა სრედს რამე ოპერაცია ენდომება დაიბლოკება.
 
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+ვლოქავ ენთრის, ფროჰიბითს ვანიჭებ თრუს(ან ფოლსს როცა აღარაა საჭირო), და თუ ფრეიმი არ აქვს, ვუჩენ ფრეიმს(ზუსტად ისე როგორც page_fault იანს თუ ჭირდება).
 
 ---- RATIONALE ----
 
@@ -196,6 +206,10 @@ struct supp_pagedir_entry{
 >> possibility for deadlock but allows for high parallelism.  Explain
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
+მთლად ერთიანარ არ დალოქოთო თორე მე არ მქონდა პრობლემა :D 
+ასე რომ ნელნელა მივყევი სად რა დამჭირდებოდა.
+ფაილების და სვაპის კოდი ერთი სრედისთვის იყო ასე რომ აუცილებლად მჭირდებოდა ცალკე ლოქი.
+second_chance_algorithm თვისობრივად sequential ალგორითმია, შემეძლო გლობალური ფრეიმ ლოქის გარეშე გამეკეთებინა, მაგრამ არ ქონდა აზრი, და ერთი რამ გამიმარტივა. ესეთი წარმოსახვითი პრობლემა მქონდა, როცა ვანად
 
 			 MEMORY MAPPED FILES
 			 ===================
