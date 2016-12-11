@@ -102,6 +102,35 @@ static struct list ready_list[PRI_SIZE];
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
+იხილეთ paint.jpg
+გვაქვს ხუთი ლოქი L1, L2, L3, L4, L5
+და 3 სრედი T1, T2, T3
+სრედებს აქვთ სია აღებული ლოქების ანუ
+T1 - L1 L2 L3
+T2 - L4
+T3 - L5
+
+და ინახავენ რომელ ლოქს ელოდებიან
+T1 - L4
+T2 - NULL
+T3 - L4
+
+ლოქები ინახავენ მფლობელებს
+L1 - T1
+L2 - T1
+L3 - T1
+L4 - T2
+L5 - T3
+
+და მომლოდინეების სია
+
+L1 -
+L2 - 
+L3 - 
+L4 - T1 T2
+L5 - 
+
+ეს გრაფი საკმარია პრიორიტეტების დონაციებისა და დედონაციებისთვის.
 
 ---- ALGORITHMS ----
 
@@ -118,12 +147,14 @@ static struct list ready_list[PRI_SIZE];
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for. 
 
+იბლოკება ინთერაფთები, ლოქის ვეითინ ლისტიდან იშლება სრედი და ხდება პრიორიტეტების გადათვლა ისევ propagate_priorities ით. შემდეგ კი ვაკეთებთ sema_up ს რომელიც მაქსიმალურ პრიორიტეტიან მომლოდინეს ეძებს და მას აღვიძებს.
+
 ---- SYNCHRONIZATION ----
 
 >> B6: Describe a potential race in thread_set_priority() and explain
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
-იბლოკება ინთერაფთები, ლოქის ვეითინ ლისტიდან იშლება სრედი და ხდება პრიორიტეტების გადათვლა ისევ propagate_priorities ით. შემდეგ კი ვაკეთებთ sema_up ს რომელიც მაქსიმალურ პრიორიტეტიან მომლოდინეს ეძებს და მას აღვიძებს.
+სეთ ფრაიორითისას ხდება ლისტებიდან წაშლა და ჩამატება, რაც thread safe არ არის, ასევე დონაციაც უნდა მოხდეს, რაც ასევე არაა thread safe. ამიტომ მთელი ამ დროის განმავლობაში ინთერრაფთები გათიშულია.
 
 ---- RATIONALE ----
 
@@ -178,9 +209,11 @@ ticks   A   B   C   A   B   C   to run
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
+არცერთი მნიშვნელობა ამ ცხრილში არ ყოფილა ჩემთვის გაურკვეველი, ყველაფერი მოცემულია ფორმულებში.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+პრიორიტეტების გადათვლა ხშირად ხდება ამიტომ მნიშვნელოვანია მათი ოპტიმალურობა, თუმცა დიდად არ გამიკეთებია ოპტიმიზაცია რადგან ისეც გადიოდა ტესტები და ინთერაფთებს თითქმის სულ ვბლოკავ გადათვლის განმავლობაში.
 
 ---- RATIONALE ----
 
@@ -188,6 +221,7 @@ ticks   A   B   C   A   B   C   to run
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
+ინთერაფთებს გავუკეთებდი ოპტიმიზაციებს.
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
