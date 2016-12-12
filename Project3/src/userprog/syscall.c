@@ -79,7 +79,6 @@ static int get_arg(struct intr_frame *f, int i){
 #define ITH_ARG(f, i, TYPE) ((TYPE)(get_arg(f, i)))
 
 
-struct lock fileSystem;
 
 void
 syscall_init (void) {
