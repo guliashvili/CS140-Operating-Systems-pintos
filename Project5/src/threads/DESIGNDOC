@@ -1,0 +1,236 @@
+			+--------------------+
+			|        CS 140      |
+			| PROJECT 1: THREADS |
+			|   DESIGN DOCUMENT  |
+			+--------------------+
+				   
+---- GROUP ----
+Luka Matcharadze <lmach14@freeuni.edu.ge>
+Givi Beridze <gberi14@freeuni.edu.ge>
+Giorgi Guliashvili<gguli13@freeuni.edu.ge>
+Tornike Zhizhiashvili<tzhiz14@freeuni.edu.ge>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			     ALARM CLOCK
+			     ===========
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+/* struct sleeping_thread ების დალაგებული ბმული სია*/
+static struct list sleeping_threads_list;
+
+/* ლისტში ჩასამატებელი elem, მფლობელის სრედის ფოინთერი, როდის უნდა გაიღვიძოს, და გადაცდომებისთვის მეჯიქი*/
+struct sleeping_thread{
+    struct list_elem elem;
+    struct thread *thread;
+    int64_t wake_up_time;
+    int MAGIC;
+};
+
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe what happens in a call to timer_sleep(),
+>> including the effects of the timer interrupt handler.
+
+ინიციალიზაციას ვაკეთებ struct sleeping_thread ის, შემდეგ ვბლოკავ ინთერაფთებს და ვაგდებ ელემენტს ისე რომ ისევ დასორტილი ლისტი მივიღო.
+
+>> A3: What steps are taken to minimize the amount of time spent in
+>> the timer interrupt handler?
+
+ჯერ ვაკეთებ ინიციალიზაციას, მხოლოდ ლისტში ჩაგდებისას ვბლოკავ ინთერაფთებს.
+
+---- SYNCHRONIZATION ----
+
+>> A4: How are race conditions avoided when multiple threads call
+>> timer_sleep() simultaneously?
+ლისტის კოდი 1 სრედზე მუშაობს, ინთერაფთებს მხოლოდ ლისტში ჩაგდებისას ვბლოავ.
+
+>> A5: How are race conditions avoided when a timer interrupt occurs
+>> during a call to timer_sleep()?
+ინთერაფთი ლისტში ჩაგდებისას ვერ მოხდება რადგან ამ დროს დაბლოკილი მაქვს, თუ ინიციალიზაციისას მოხდება პრობლემა არაა რადგან ინფორმაციას არ იყოფენ ამ დროს.
+
+---- RATIONALE ----
+
+>> A6: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+
+შემეძლო ლისტი დასორტირებულად არ შემენახა მაგრამ გადავწყვიტე ასე მექნა, თუ დაუსორტირებლად მექნებოდა ლისტიდან ამოღებისას ყოველთვის მთელ ლისტზე გადავლა დამჭირდებოდა რაც რაღაც შემთხვევებში მეტ დროს წაიღებდა.
+
+			 PRIORITY SCHEDULING
+			 ===================
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+struct thread
+{
+    ...
+
+    struct lock *waiting_lock;  // რა ლოქს უცდის ახლა ეს სრედი(1 ზე მეტი ვერ იქნება)
+    int priority;                       /* MAX(old_priority, დონაციებიდან) */
+    struct list_elem allelem;           /* List element for all threads list. */
+    int old_priority; /* უკანასკნელი პრიორიტეტი რომელიც set_priorityმ მიანიჭა */
+
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    /* ლოქები რომლებიც ამ სრედს აქვს აღებული */
+    struct list acquired_locks_list;
+    
+    ...
+};
+/* განსხვავებულ პრიორიტეტიცალი ყუთი, ერთნაირ პრიორიტეტიანები ერთ ლისტში აგდიან, ელემენტები ემატება ბოლოში და ვარდება თავიდან (round robin) */
+static struct list ready_list[PRI_SIZE]; 
+
+
+>> B2: Explain the data structure used to track priority donation.
+>> Use ASCII art to diagram a nested donation.  (Alternately, submit a
+>> .png file.)
+იხილეთ paint.jpg
+გვაქვს ხუთი ლოქი L1, L2, L3, L4, L5
+და 3 სრედი T1, T2, T3
+სრედებს აქვთ სია აღებული ლოქების ანუ
+T1 - L1 L2 L3
+T2 - L4
+T3 - L5
+
+და ინახავენ რომელ ლოქს ელოდებიან
+T1 - L4
+T2 - NULL
+T3 - L4
+
+ლოქები ინახავენ მფლობელებს
+L1 - T1
+L2 - T1
+L3 - T1
+L4 - T2
+L5 - T3
+
+და მომლოდინეების სია
+
+L1 -
+L2 - 
+L3 - 
+L4 - T1 T2
+L5 - 
+
+ეს გრაფი საკმარია პრიორიტეტების დონაციებისა და დედონაციებისთვის.
+
+---- ALGORITHMS ----
+
+>> B3: How do you ensure that the highest priority thread waiting for
+>> a lock, semaphore, or condition variable wakes up first?
+სემაფორს აქვს მომლოდინეების ლისტი, ლისტიდან ამომაქვს მაქსიმალურ პრიორიტეტიანი სრედი(list_max) და იმას ვუკეთებ ანბლოქს.
+
+>> B4: Describe the sequence of events when a call to lock_acquire()
+>> causes a priority donation.  How is nested donation handled?
+იბლოკება ინთერაფთები, სრედის სტრუქტურაში ვწერ რომ ამ ლოქს ელოდება, ვინახავ ვინ არის ამ ლოქის მფლობელი(თუ არავინ NULL)
+შემდეგ ვიძახებ propagate_prioritiesს რომელმაც ყველა სრედს ჯაჭვურად უნდა მიანიჭოს სწორი პრიორიტეტი, გადაეცემა სრედი საიდანაც უნდა დაიწყოს, და  ახალი პრიორიტეტი(თუ რამის გაუქმება გვინდა და არა გაზრდა -1), კიდევ ორი არგუმენტი(რომელ ლეველზეა და aux დებაგინგისთვის).
+პრიორიტეტების_ჩაშლას ვიძახებთ იმ ლოქის მფლობელზე რა ლოქიც გვინდა ავიღოთ და დამატებით ვაძლევთ ჩვენ პრიორიტეტს(და -1 ს როცა გვინდა წავართვათ, ლოქის აღების შემდეგ), ეს ფუნქცია ჯერ გადაუვლის სრედის ყველა აღებულ ლოქს და ლოქის ყველა მომლოდინე სრედს მათგან აიღებს მაქსიმალურ პრიორიტეტს, თუ გადმოცემული პრიორიტეტი უფრო მეტია იმას შეინახავს, და მიინიჭებს ამ ახალ პრიორიტეტს(ოღონდ ისე რომ old_priority არ შეეცვლება), შემდეგ თუკი რამე ლოქს ელოდება თავის ახალ პრიორიტეტს ჩაუშვებს მასთან და ისიც იგივენაირად მოიქცევა რეკურსიულად.
+
+>> B5: Describe the sequence of events when lock_release() is called
+>> on a lock that a higher-priority thread is waiting for. 
+
+იბლოკება ინთერაფთები, ლოქის ვეითინ ლისტიდან იშლება სრედი და ხდება პრიორიტეტების გადათვლა ისევ propagate_priorities ით. შემდეგ კი ვაკეთებთ sema_up ს რომელიც მაქსიმალურ პრიორიტეტიან მომლოდინეს ეძებს და მას აღვიძებს.
+
+---- SYNCHRONIZATION ----
+
+>> B6: Describe a potential race in thread_set_priority() and explain
+>> how your implementation avoids it.  Can you use a lock to avoid
+>> this race?
+სეთ ფრაიორითისას ხდება ლისტებიდან წაშლა და ჩამატება, რაც thread safe არ არის, ასევე დონაციაც უნდა მოხდეს, რაც ასევე არაა thread safe. ამიტომ მთელი ამ დროის განმავლობაში ინთერრაფთები გათიშულია.
+
+---- RATIONALE ----
+
+>> B7: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+პრიორიტეტების დონაციისთვის გვჭირდება ლოქების მომლოდინე და მფლობელი სრედების რაღაცნაირად შენახვა რათა ამ გრაფში რეკურსიულად გავაკეთოთ დონაციები. ძველი პრიორიტეტის შენახვაც იმიტომ გვინდა რომ პრიორიტეტის წართმევისას სხვანაირად ვერ გავიგებთ რა მივანიჭოთ.
+
+			  ADVANCED SCHEDULER
+			  ==================
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+static fixedPoint load_average = 0;
+struct thread
+{
+    ....
+    fixedPoint recent_cpu;
+
+    int nice;
+    
+    ....
+};
+
+---- ALGORITHMS ----
+
+>> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
+>> has a recent_cpu value of 0.  Fill in the table below showing the
+>> scheduling decision and the priority and recent_cpu values for each
+>> thread after each given number of timer ticks:
+
+#define TIME_SLICE 4            /* # of timer ticks to give each thread. */
+
+timer  recent_cpu    priority   thread
+ticks   A   B   C   A   B   C   to run
+-----  --  --  --  --  --  --   ------
+ 0      1   1   2  63  60  58        A
+ 4      5   1   2  62  60  58        A
+ 8      9   1   2  61  60  58        A
+12     12   2   2  60  60  58        B
+16     13   5   2  60  59  58        A
+20     16   6   2  59  59  58        B
+24     17   9   2  59  58  58        A
+28     20   9   3  58  58  58        C
+32     20  10   6  58  58  57        B
+36     21  13   6  58  57  57        A
+
+>> C3: Did any ambiguities in the scheduler specification make values
+>> in the table uncertain?  If so, what rule did you use to resolve
+>> them?  Does this match the behavior of your scheduler?
+არცერთი მნიშვნელობა ამ ცხრილში არ ყოფილა ჩემთვის გაურკვეველი, ყველაფერი მოცემულია ფორმულებში. ერთნაირ პრიორიტეტებშიც მგონი გასაგებად ეწერა რომ რაუნდ რობინით უნდა გაგვეშვა.
+
+>> C4: How is the way you divided the cost of scheduling between code
+>> inside and outside interrupt context likely to affect performance?
+პრიორიტეტების გადათვლა ხშირად ხდება ამიტომ მნიშვნელოვანია მათი ოპტიმალურობა, თუმცა დიდად არ გამიკეთებია ოპტიმიზაცია რადგან ისეც გადიოდა ტესტები და ინთერაფთებს თითქმის სულ ვბლოკავ გადათვლის განმავლობაში.
+
+---- RATIONALE ----
+
+>> C5: Briefly critique your design, pointing out advantages and
+>> disadvantages in your design choices.  If you were to have extra
+>> time to work on this part of the project, how might you choose to
+>> refine or improve your design?
+ინთერაფთებს გავუკეთებდი ოპტიმიზაციებს.
+
+>> C6: The assignment explains arithmetic for fixed-point math in
+>> detail, but it leaves it open to you to implement it.  Why did you
+>> decide to implement it the way you did?  If you created an
+>> abstraction layer for fixed-point math, that is, an abstract data
+>> type and/or a set of functions or macros to manipulate fixed-point
+>> numbers, why did you do so?  If not, why not?
+
+გადავწყვიტეთ რომ ცალკე თაიფი შეგვექმნა მისთვის
+typedef int32_t fixedPoint;
+ასევე ყველა ფუნქცია მუშაობს ფოინთერების გარეშე, უბრალოდ აბრუნებენ ახალ მნიშვნელობას.
+რა თქმა უნდა შეგვეძლო ამ თაიფდეფის გარეშეც, უბრალოდ ინთები გამოგვეყენებინა თუმცა ეს გაურკვევლობას გამოიწვევდა რომელი არგუმენტი უნდა ყოფილიყო ნამდვილი ინთის ფორმატში და რომელი ფიქსდ ფოინთში.

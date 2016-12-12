@@ -1,0 +1,294 @@
+        +---------------------------+
+		    | CS 140                    |
+		    | PROJECT 3: VIRTUAL MEMORY	|
+		    |	DESIGN DOCUMENT           |
+		    +---------------------------+
+
+---- GROUP ----
+
+ლუკა მაჭარაძე <lmach14@freeuni.edu.ge>
+გივი ბერიძე <gberi14@freeuni.edu.ge>
+გიორგი გულიაშვილი<gguli13@freeuni.edu.ge>
+თორნიკე ჟიჟიაშვილი<tzhiz14@freeuni.edu.ge>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			PAGE TABLE MANAGEMENT
+			=====================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+
+struct frame{
+    struct supp_pagedir_entry *user;
+    bool prohibit_cache;
+    struct list_elem link;
+    int MAGIC;
+};
+ფიზიკურად არსებული ფეიჯის სტრუქტურა.
+მიმთითებელი დამატებით ფეიჯდირზე, აკრძალულია თუარა სვაპში გადატანა, ფეიჯ ევიქშენის ლისტში ჩასაწერად ლინკი, და მეჯიქი რომელიც მხოლოდ არსებობისაა FRAME_MAGIC ის ტოლი.
+
+struct frame_map{
+    int num_of_frames; // ფრეიმების რაოდენობა
+    struct frame *frames; //ფრეიმების ცხრილზე მიმთითებელი
+    struct lock list_lock; // ფეიჯ ევიქშენის ლისტის ლოქი
+    struct list ordered_list; // ფეიჯ ევიქშენის ლისტი სადაც ჰედი არის ფოინთერი
+};
+
+
+struct supp_pagedir2{
+    struct supp_pagedir_entry *entries[1<<PTBITS];
+};
+
+struct supp_pagedir{
+    struct supp_pagedir2 *entries[1<<PDBITS];
+};
+pagedir ისნაირი 2 ჩადგმული ჰეშმეპი ოღონდ სტრუქტურებად
+
+struct supp_pagedir_entry{
+    struct lock lock;  // კონკრეტულ ფეიჯს იცავს მასზე მუშაობისას არ გადავიდეს სვაპში(ან მფლობელმა არ დაიწყოს მასზე მუშაობა)
+    enum palloc_flags flags; // ფლეგები
+    uint32_t **pagedir; // მფლობელი სრედის ფეიჯდირის მიმთითებლის მიმთითებელი
+
+    block_sector_t sector_t; // სვაპის სლოტის ადგილი სადაც წერია ან -1
+    int fd; // ფაილის მისამართი სადაც წერია ან -1
+    int s; // ფაილში დასაწყისი ან -1
+    int e; // ფაილში ბოლო ან -1
+
+    void *upage; // იუზერისთვის რა ფოინთერზე იწყება ეს ფეიჯი
+    int MAGIC; // თუ არსებობს უდრის PAGING_MAGIC.
+};
+
+struct thread
+{
+...
+    struct supp_pagedir *supp_pagedir; //ყველა სრედს თავისი საფლიმენთალ ფეიჯდირის ისამართი ექნება
+...
+};
+
+enum palloc_flags
+  {
+...
+    PAL_THROUGH_FRAME = 16, // იმისათვის რომ დავრწმუნებულიყავი კერნელი საიდანმე პალოქით პირდაპირ არ იღებდა ფეიჯებს იუზერ სფეისიდან, პალოქი იქრაშება თუ იუზერსფეისში ოპერაციას ამ ფლეგის გარეშე თხოვენ, ამ ფლეგს ანიჭებს frame.c
+    PAL_PROHIBIT_CACHE = 32,  // არ გადავიდეს სვაპში ან ფაილში(არ გაქრეს ფიზიკურად რამიდან)
+    PAL_DONT_SYNC_ON_DISK = 64 // ფაილზე აქვს მიმთითებელი მაგრამ არ გადავწეროთ შეცვილილი ფაილს
+};
+
+
+---- ALGORITHMS ----
+
+>> A2: In a few paragraphs, describe your code for accessing the data
+>> stored in the SPT about a given page.
+vm/paging.c იმპლემენტირებს struct supp_pagedir_entry **supp_pagedir_lookup (struct supp_pagedir *table, const void *upage, bool create);. თუკი გვინდა საფლიმენთალ ინფორმაციის მიღება ან შეცვლა ან შექმნა ამ ფუნქცას გამოვიძახებთ, სადაც table = სრედის საფლიმენთალ ფეიჯდირის ფოინთერს, upage არის იუზერის ვირტუალური მისამართი, create იქნება true თუ შექმნაც გვინდა. აბრუნებს ენთრის ფოინთერის ფოინთერს, ამის საშუალების მინიჭებაც შეგვეძლება. თუ create == false და upage არ არსებობს დაბრუნებული მნიშვნელობა ან *დაბრუნებული მნიშვნელობა არის ნალი.
+
+>> A3: How does your code coordinate accessed and dirty bits between
+>> kernel and user virtual addresses that alias a single frame, or
+>> alternatively how do you avoid the issue?
+ორივეგან ვამოწმებ და ვასფუთავებ სიბინძურეს და ექსესდს.
+
+---- SYNCHRONIZATION ----
+
+>> A4: When two user processes both need a new frame at the same time,
+>> how are races avoided?
+ყველა ფეიჯს აქვს თავისი ლოქი, page fault შესვლისას ვლოქავთ ამ ლოქს. დედლოქები არ მოხდენის დამტკიცებისთვის იმ ფაქტის ცოდნა დაგვჭირდება, რომ page faultში შესვლისას რა ფეიჯის ლოქსაც ვლოქავთ არ არის ჩვეულებრივი ფეიჯი, ეს არის უფრეიმო ფეიჯი.
+
+როცა სვაპში უნდა გადავუტანოთ ფრეიმი იმ შემთხვევაზე კითხვა შემდეგ არის, ამიტომ ამ ქეისს შემდეგ დავწერ.
+თუ თავისუფალი ფრეიმი არსებობს მოხდება შემდეგი, გამოვიძახებთ void* frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user) vm/frame.c ფაილიდან, რომელიც დააბრუნებს კერნელ ვირტუალ ედრესს(რაზეც ფეიჯდირი უნდა დავმეპოთ). თვითონ frame_get_page არაფერს ლოქავს(როცა ფეიჯ ევიქშენი არ გვჭირდება) და პირდაპირ იძახებს palloc_get_page ს რომელიც თავის ლოქს ლოქავს(ეს კოდი არ შემიცვლია) ბიტმეპში პოულობს ერთცალ თავისუფალ ადგილს და აბრუნებს.
+
+---- RATIONALE ----
+
+>> A5: Why did you choose the data structure(s) that you did for
+>> representing virtual-to-physical mappings?
+
+ფრეიმები არის უბრალო მასივი, ეს სინამდვილეში სხვანაირად(და უკეთესად) ვერც დაიწერებოდა, palloc შიც იგივეა გაკეთებული ფაქტობრივად ოღონდ იმათ მარტო დაკავებული/დაუკავებელი აინტერესებდათ და ბიტმეპი ქონდათ, მე რაკი მეტ ინფორმაციას ვინახავ ამ სტრუქტურის მასივი მაქვს. თითოეულ ფრეიმს ასევე აუცილებლად ჭირდება თავისი მფლობელი ფეიჯის ცოდნა(ევიქშენისას შესაბამისად რომ შეცვალოს ის) და აკრძალულია თუ არა ამ ფრეიმის ევიქშენი(ამას კერნელ სფეისში ყოფნისას ვიყენებთ რადგან ფეიჯ ფოლთების იმედი ვერ გვექნება იქ და გვინდა გარანტია იმ ფეიჯის ფრეიმის ფიზიკურ არსებობაზე რომელსაც ვიყენებთ).
+
+supp_pagedir ის სტრუქტურაც იგივენაირადაა იმპლემენტირებული როგორც pagedir ის, ორი ჩადგმული ჰეშთეიბლი, სადაც ცალსახა მეპინგია. ოღონდ pageir ი თავის ინფორმაციას 32 ბაიტში ატევდა მე კი მთელი სტრუქტურის შენახვა მინდა.
+
+
+		       PAGING TO AND FROM DISK
+		       =======================
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct swap_map{
+    struct lock lock;
+    struct bitmap *map;
+};
+მაპი დაკავებული სლოტებისთვის(თითო ბიტი  თითო PAGE_SIZE ზე მიუთითებს).
+ლოქი სვაპიდან წაკითხვა ჩაწერის დასალოქად და ბიტმეპის scan_and_flipისთვის.
+
+struct supp_pagedir_entry{
+...
+    block_sector_t sector_t; // სვაპის სლოტის ადგილი სადაც წერია ან -1
+...
+};
+
+---- ALGORITHMS ----
+
+>> B2: When a frame is required but none is free, some frame must be
+>> evicted.  Describe your code for choosing a frame to evict.
+
+იმპლემენტაცია გავუკეთე და მოსახერხებლად შევცვალე მეორე შანსის ალგორითმი,
+ალგორითმი იქცევა შემდეგნაირად, 
+სანამ ფრეიმს არ იპოვის იმეორებს(მეორე შანსის ალგორითმი არ მომეწონა იმით რომ მეორე შეხვედრაზე ეგრევე იღებს ფეიჯს, თუ ესე მოკლე მონაკვეთში კიდე დაექსესდა აცადე ბატონო :D ) 
+	ავიღოთ ფრეიმი რომელიც რიგშია(ამოვიღოთ თავიდან ჩავაგდოთ ბოლოში და დავაბრუნოთ)
+	try lock, თუ დალოქილია შევეშვათ, ანუ ახლა იწყებს მუშაობას რამე სის ქოლი.
+	შევამოწმოთ თუ აკრძალულია ქეშში გადატანა შევეშვათ.
+	შევამოწმოთ თუ kpage ან upage ექსესდია გავასუფთაოთ და შევეშვათ.
+	გავჩერდეთ
+ 
+>> B3: When a process P obtains a frame that was previously used by a
+>> process Q, how do you adjust the page table (and any other data
+>> structures) to reflect the frame Q no longer has?
+მფოლბელი სრედის ფეიჯდირში ჯერ მხოლოდ კერნელ ექსესის უფლებას ვაძლევ, შემდეგ ფრეზენთ ფლაგს ვუშლი საერთოდ. თუ დამეპილი ფეიჯი იყო და დაჭუჭყიანებულია არაა არსად არ ვინახავ, და დაჭუჭყიანებულია და PAL_DONT_SYNC_ON_DISK ფლეგი აქვს სვაპში ვინახავ, თუ ეს ფლეგი არ აქვს უკან ვწერ ფაილში, თუ დამეპილი არაა, თუ დაჭუჭყიანებული არაა და PAL_ZERO ფლაგითაა შექმნილი არსად ვწერ, თუარადა სვეპში ვწერ. სვეპში ჩაწერისას საფლიმენთალ ფეიჯდირ ენთრიში sector_t სახელის ცვლადში ვინახავ სვაპის ადგილს სადაც ის შევინახე.
+
+>> B4: Explain your heuristic for deciding whether a page fault for an
+>> invalid virtual address should cause the stack to be extended into
+>> the page that faulted.
+  if (esp - 33 < (uint32_t)p && (uint32_t)p < esp + PGSIZE * 100) {
+ან ცოტათი უნდა იყოს გადაცდენილი ან 100 ფეიჯის სიშორეზე უნდა იყოს
+
+---- SYNCHRONIZATION ----
+
+>> B5: Explain the basics of your VM synchronization design.  In
+>> particular, explain how it prevents deadlock.  (Refer to the
+>> textbook for an explanation of the necessary conditions for
+>> deadlock.)
+კერნელ მოუდში შევდივართ ორი ადგილიდან, ფეიჯ ფოლთიდან და სისთემ ქოლიდან. სისტემ ქოლი ჩადგმულ ლოქებს არ იღებს ან და ძალიან ტრივიალურია მათი არა დედლოქობა, ბოლო კითხვა ეხება ამას.
+ფეიჯ ფოლთიდან ხდება შემდეგი, ლოქების გარეშე ვამოწმებთ მინიმალურ შეზღუდვებს რასაც უნდა აკმაყოფილედეს ვალიდური რექვესთი, მაგალითად რომ იუზერ ედრესზე უნდა იყოს მოთხოვნა, ან სტეკის ჰეურისტიკა trues რომ აბრუნებს, და რომ supp_pagedir_entry არსებობს ამ მისამართისთვის.
+ამ ენთრის ვიღებთ ლოქის გარეშე, ეს სწორი იქნება რადგან, supp_pagedir_entry ს მხოლოდ მფლობელი სრედი ქმნის და შლის, ეს სრედი კი ახლა page_fault შია ასე რომ მშვიდად შეგვიძლია ეს ვქნათ. თუ ენთრი არ არსებობს ვალიდური მოთხოვნა არ ყოფილა.
+თუ არსებობს მაშინ მის ლოქს ავიღებთ(ყველა entry ს თავისი ლოქი აქვს), ამ ენთრის არ აქვს ფრეიმი, ამიტომ ასეთ ენთრიებს დავარქვათ უფრეიმო ენთრიები(ეს დაგვჭირდება არციკლური დალოქვის საჩვენებლად). ახლა მოხდება რამდენიმე რამ, 1) გამოვყოფთ ფრეიმს, თუ თავისუფალი ფრეიმი არსებობს ავიღებთ, თუ არადა second chance ალგორითმით(თავისი სტრუქტურებიდან ამოსაღებად თავისი გლობალური ლოქი აქვს) ვცდილობთ ვიპოვოთ გასაგდები ფრეიმი, აქაა აღსანიშნავი რომ ყველაფერი რასაც ვლოქავთ არის ფრეიმიანი entry და ჩვენ ჯერ კიდევ უფრეიმო ვართ, ასე რომ დედლოქი არ იქნება. ფრეიმ ევიქშენის შემდეგ, თუ საჭიროა სვაპიდან წავიკითხავთ(ილოქება სვაპის გლობალური ლოქი), თუ საჭიროა ფაილიდან(ილოქება ფაილის გლობალური ლოქი). არის კიდევ ერთი, როცა გვინდა სვაპში გადატანა ავკრძალოთ თავიდანვე ვლოქავთ ფრეიმიან ენთრის, თუმცა მას სხვა არაფერის ლოქი არ ჭირდება, და ეს შემთხვევები არ გაგვიჩენს ციკლს ლოქების გრაფში.
+
+>> B6: A page fault in process P can cause another process Q's frame
+>> to be evicted.  How do you ensure that Q cannot access or modify
+>> the page during the eviction process?  How do you avoid a race
+>> between P evicting Q's frame and Q faulting the page back in?
+
+Proces P - მე, Process Q- ის
+როდესაც ავირჩევ გასაგდებ ფრეიმს, ვშვები შემდეგს, მის ფეიჯდირს გავიაქტიურებ მე(და ჩემსას შევინახავ), გასაგდები ფრეიმის upage ზე მოვნიშნავ რომ მხოლოდ კერნელს შეუძლია ფეიჯის გამოყენება(აწი ნებისმიერ წვდომაზე ამოვარდება ფეიჯფოლთი(და დაიბლოკება რადგან ამ ფეიჯის ლოქი მე მაქ აღებული) და მისი აღარ მეშინია). ჩვეულებრივი ლოგიკით გადავიტან სვაპში ან ფაილში. ფეიჯის მისამართს გავასუფთავებ(&=~PTE_P), ჩემ ძველ ფეიჯდირს გავიაქტიურებ.
+
+>> B7: Suppose a page fault in process P causes a page to be read from
+>> the file system or swap.  How do you ensure that a second process Q
+>> cannot interfere by e.g. attempting to evict the frame while it is
+>> still being read in?
+ფეიჯ ფოლთში შესვლისას, ფეიჯის შესაბამის ლოქს ვიღებთ, ასე რომ თუ სხვა სრედს რამე ოპერაცია ენდომება დაიბლოკება.
+
+>> B8: Explain how you handle access to paged-out pages that occur
+>> during system calls.  Do you use page faults to bring in pages (as
+>> in user programs), or do you have a mechanism for "locking" frames
+>> into physical memory, or do you use some other design?  How do you
+>> gracefully handle attempted accesses to invalid virtual addresses?
+
+ვლოქავ ენთრის, ფროჰიბითს ვანიჭებ თრუს(ან ფოლსს როცა აღარაა საჭირო), და თუ ფრეიმი არ აქვს, ვუჩენ ფრეიმს(თუ ვანიჭებ თრუს)(ზუსტად ისე როგორც page_fault იანს თუ ჭირდება).
+
+---- RATIONALE ----
+
+>> B9: A single lock for the whole VM system would make
+>> synchronization easy, but limit parallelism.  On the other hand,
+>> using many locks complicates synchronization and raises the
+>> possibility for deadlock but allows for high parallelism.  Explain
+>> where your design falls along this continuum and why you chose to
+>> design it this way.
+მთლად ერთიანარ არ დალოქოთო თორე მე არ მქონდა პრობლემა :D 
+ასე რომ ნელნელა მივყევი სად რა დამჭირდებოდა.
+ფაილების და სვაპის კოდი ერთი სრედისთვის იყო ასე რომ აუცილებლად მჭირდებოდა ცალკე ლოქი.
+second_chance_algorithm თვისობრივად sequential ალგორითმია, ასე რომ თავის სტრუქტურაზე(დაკავებული ფრეიმების ლისტზე) ლოქი ჭირდება.
+supp_pagedir_entry ების ლოქები ფაქტობრივად მაქსიმალური პარალელიზმის საშუალებას მაძლევს.
+
+			 MEMORY MAPPED FILES
+			 ===================
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct thread
+{
+...
+    struct list mmap_address; //სრედს აქვს ლისტი დამეპილი ფაილების სტრუქტურებზე
+...
+};
+
+struct mmap_info{
+    struct list_elem link; // სრედის mmap_address ლისტში ჩასაგდებად.
+    void *vaddr; // საიდან იწყება მეპინგი(ფეიჯის თავის მიმთითებელი)
+    int num_of_pages; // რამენი ფეიჯია დამეპილი
+    int id; // მეპის აიდი
+    int fd; // ღია ფაილის ნომერი
+};
+
+struct supp_pagedir_entry{
+...
+    block_sector_t sector_t; // სვაპის სლოტის ადგილი სადაც წერია ან -1
+    int fd; // ფაილის მისამართი სადაც წერია ან -1
+    int s; // ფაილში დასაწყისი ან -1
+    int e; // ფაილში ბოლო ან -1
+...
+};
+
+---- ALGORITHMS ----
+
+>> C2: Describe how memory mapped files integrate into your virtual
+>> memory subsystem.  Explain how the page fault and eviction
+>> processes differ between swap pages and other pages.
+როდესაც ამოვარდება ფეიჯ ფოლთი, ვამოწმებ რომ თუ fd != -1 წავიკითხავ ფაილიდან s დან e მდე.
+ევიქშენი მარტო ბოლო ეტაპზე, სხვაგან გადაწერისას განსხვავდება(იმას ფაილში ვწერ იმას სვაპში :), თუ დერთი  არ ვწერ, თუ აკრძალულია ჩაწერა მაინც სვაპში ვწერ).
+
+>> C3: Explain how you determine whether a new file mapping overlaps
+>> any existing segment.
+mmap ის შექმნისას ყველა ფეიჯს ცალცალე ვუვლი და მათ supp_pagedir_entry ებს ვასწორებ, ასერომ სადმე თუ დამხვდება fd != -1 გადაფარვა მქონია.
+
+---- RATIONALE ----
+
+>> C4: Mappings created with "mmap" have similar semantics to those of
+>> data demand-paged from executables, except that "mmap" mappings are
+>> written back to their original files, not to swap.  This implies
+>> that much of their implementation can be shared.  Explain why your
+>> implementation either does or does not share much of the code for
+>> the two situations.
+ბევრი კოდის წერა არ მიყვარს, mmap ს უბრალოდ დავუმატე ფლეგები, სადაც შემიძლია მივუთითო PAL_DONT_SYNC_ON_DISK და ფრეიმ ევიქშენისას გადატანისას ასეთ ფლეგიანებს სვაპში გადავიტან ფაილზე გადაწერის ნაცვლად.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+I will never ever blame Windows programmers for BLUE SCREEN PROBLEM anymore.
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+არსებულ ფუნქციონალზე (pte vaddr pagedir) ვინმე რო ყვებოდეს უფრო ჩქარა აითვისებენ.
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+Naah.
+>> Any other comments?
