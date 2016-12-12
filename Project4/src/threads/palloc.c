@@ -210,6 +210,7 @@ init_user_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   size_t sw_pages = swap_get_init_size ();
 
   page_cnt = (page_cnt * PGSIZE - bm_pages - fr_pages - sw_pages) / PGSIZE;
+  if(page_cnt <= 0) PANIC("Not enough RAM for user pool");
   /* Initialize the pool. */
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages);
