@@ -59,8 +59,6 @@ static void remove_frame_from_eviction_struct(struct frame *f){
 static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp_pagedir_entry *user, void *page){
   struct frame *f = frame_get_frame(idx);
 
-  ASSERT(f->MAGIC != FRAME_MAGIC);
-  f->MAGIC = FRAME_MAGIC;
   f->user = user;
   f->prohibit_cache = flags & PAL_PROHIBIT_CACHE;
   pagedir_set_accessed(*user->pagedir, page, false);
@@ -92,7 +90,6 @@ static void frame_second_chance_algorithm(void){
   struct lock *lock;
   while(1){
     f = get_next_frame_to_test();
-    ASSERT(f->MAGIC == FRAME_MAGIC);
     if(lock_try_acquire(lock = &f->user->lock)) {
       if (f->prohibit_cache) {
         lock_release(lock);
@@ -191,7 +188,6 @@ void frame_free_page_no_lock (void *kpage){
   ASSERT(idx != UINT32_MAX);
   struct frame *f = frame_get_frame(idx);
   remove_frame_from_eviction_struct(f);
-  f->MAGIC = -1;
   f->user = NULL;
 
   palloc_free_page(kpage);

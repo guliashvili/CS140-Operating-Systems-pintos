@@ -12,7 +12,6 @@ struct frame{
     struct supp_pagedir_entry *user;
     bool prohibit_cache;
     struct list_elem link;
-    int MAGIC;
 };
 struct frame_map{
     int num_of_frames;
