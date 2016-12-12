@@ -218,7 +218,6 @@ void supp_pagedir_destroy_page(struct supp_pagedir *spd, uint32_t *pd, void *upa
   ASSERT(pd);
   void *kpage = pagedir_get_page(pd, upage);
 
-  bool frame_is_locked = false;
   if(kpage)
     frame_free_page_no_lock(kpage);
 

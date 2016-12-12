@@ -10,12 +10,16 @@
 static struct swap_map *s_map = NULL;
 #define NUM_OF_HARD_DISK_SEGMENT (PGSIZE / BLOCK_SECTOR_SIZE)
 
-void swap_init(void){
+void swap_init(void *p){
   struct block *swap = block_get_role(BLOCK_SWAP);
   ASSERT(PGSIZE % BLOCK_SECTOR_SIZE == 0);
-  s_map = malloc(sizeof(struct swap_map));
+  s_map = (struct swap_map *)p;
   lock_init(&s_map->lock);
   s_map->map = bitmap_create(block_size(swap) * BLOCK_SECTOR_SIZE / PGSIZE);
+}
+
+int swap_get_init_size(void){
+  return sizeof(struct swap_map);
 }
 
 block_sector_t swap_write(void *kpage){
