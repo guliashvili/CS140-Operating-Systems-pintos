@@ -154,6 +154,8 @@ palloc_free_multiple (void *pages, size_t page_cnt)
     pool = &kernel_pool;
   else if (page_from_pool (&user_pool, pages))
     pool = &user_pool;
+  else
+    NOT_REACHED();
 
   page_idx = pg_no (pages) - pg_no (pool->base);
 
@@ -201,32 +203,22 @@ init_user_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   /* We'll put the pool's used_map at its base.
      Calculate the space needed for the bitmap
      and subtract it from the pool's size. */
-  size_t bm_pages = DIV_ROUND_UP (bitmap_buf_size (page_cnt), PGSIZE);
-  if (bm_pages > page_cnt)
-    PANIC ("Not enough memory in %s for bitmap.", name);
-  page_cnt -= bm_pages;
+  size_t bm_pages = bitmap_buf_size (page_cnt);
 
-  size_t fr_pages = DIV_ROUND_UP (frame_map_get_init_size (page_cnt), PGSIZE);
-  if(fr_pages > page_cnt)
-    PANIC("Not enough for frame");
-  page_cnt -= fr_pages;
+  size_t fr_pages = frame_map_get_init_size (page_cnt);
 
-  size_t sw_pages = DIV_ROUND_UP (swap_get_init_size (), PGSIZE);
-  if(sw_pages > page_cnt)
-    PANIC("Not enough for frame");
-  page_cnt -= sw_pages;
+  size_t sw_pages = swap_get_init_size ();
 
-  printf ("%zu pages available in %s.\n", page_cnt, name);
-
+  page_cnt = (page_cnt * PGSIZE - bm_pages - fr_pages - sw_pages) / PGSIZE;
   /* Initialize the pool. */
   lock_init (&p->lock);
-  p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
-  base += bm_pages * PGSIZE;
+  p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages);
+  base += bm_pages;
   frame_map_init(base, page_cnt);
-  base += fr_pages * PGSIZE;
+  base += fr_pages;
   swap_init(base);
-  base += sw_pages * PGSIZE;
-  p->base = base;
+  base += sw_pages;
+  p->base = (uint8_t *)pg_round_up(base);
 }
 
 /* Returns true if PAGE was allocated from POOL,

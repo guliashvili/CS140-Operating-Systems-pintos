@@ -6,8 +6,6 @@
 #include "threads/palloc.h"
 #include "lib/kernel/list.h"
 
-#define FRAME_MAGIC 432432232
-
 struct frame{
     struct supp_pagedir_entry *user;
     bool prohibit_cache;
