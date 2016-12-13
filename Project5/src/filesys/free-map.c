@@ -4,6 +4,8 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
+#include "filesys.h"
+#include "../filesys/cached_block.h"
 
 static struct file *free_map_file;   /* Free map file. */
 static struct bitmap *free_map;      /* Free map, one bit per sector. */
@@ -12,7 +14,7 @@ static struct bitmap *free_map;      /* Free map, one bit per sector. */
 void
 free_map_init (void) 
 {
-  free_map = bitmap_create (block_size (fs_device));
+  free_map = bitmap_create (cached_block_size (fs_device_cached));
   if (free_map == NULL)
     PANIC ("bitmap creation failed--file system device is too large");
   bitmap_mark (free_map, FREE_MAP_SECTOR);

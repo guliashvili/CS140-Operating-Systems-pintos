@@ -6,9 +6,10 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "cached_block.h"
 
 /* Partition that contains the file system. */
-struct block *fs_device;
+struct cached_block *fs_device_cached;
 
 static void do_format (void);
 
@@ -17,8 +18,8 @@ static void do_format (void);
 void
 filesys_init (bool format) 
 {
-  fs_device = block_get_role (BLOCK_FILESYS);
-  if (fs_device == NULL)
+  fs_device_cached = cached_block_init(block_get_role (BLOCK_FILESYS), 64);
+  if (fs_device_cached == NULL)
     PANIC ("No file system device found, can't initialize file system.");
 
   inode_init ();
