@@ -68,8 +68,9 @@ palloc_init (size_t user_page_limit)
 
   /* Give half of memory to kernel, half to user. */
   init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool");
-  init_user_pool (&user_pool, free_start + kernel_pages * PGSIZE,
+  init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
              user_pages, "user pool");
+  swap_init();
   supp_pagedir_init();
 }
 
@@ -177,7 +178,7 @@ palloc_free_page (void *page)
 /* Initializes pool P as starting at START and ending at END,
    naming it NAME for debugging purposes. */
 static void
-init_pool (struct pool *p, void *base, size_t page_cnt, const char *name) 
+init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
 {
   /* We'll put the pool's used_map at its base.
      Calculate the space needed for the bitmap
@@ -192,34 +193,8 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   /* Initialize the pool. */
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
+  if(p == &user_pool) frame_map_init(page_cnt);
   p->base = base + bm_pages * PGSIZE;
-}
-
-/* Initializes pool P as starting at START and ending at END,
-   naming it NAME for debugging purposes. */
-static void
-init_user_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
-{
-  /* We'll put the pool's used_map at its base.
-     Calculate the space needed for the bitmap
-     and subtract it from the pool's size. */
-  size_t bm_pages = bitmap_buf_size (page_cnt);
-
-  size_t fr_pages = frame_map_get_init_size (page_cnt);
-
-  size_t sw_pages = swap_get_init_size ();
-
-  page_cnt = (page_cnt * PGSIZE - bm_pages - fr_pages - sw_pages) / PGSIZE;
-  if(page_cnt <= 0) PANIC("Not enough RAM for user pool");
-  /* Initialize the pool. */
-  lock_init (&p->lock);
-  p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages);
-  base += bm_pages;
-  frame_map_init(base, page_cnt);
-  base += fr_pages;
-  swap_init(base);
-  base += sw_pages;
-  p->base = (uint8_t *)pg_round_up(base);
 }
 
 /* Returns true if PAGE was allocated from POOL,

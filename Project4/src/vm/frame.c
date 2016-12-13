@@ -36,13 +36,13 @@ static void add_frame_to_eviction_struct(struct frame *f){
 }
 
 static struct frame *get_next_frame_to_test(void){
-  lock_acquire(&frame_map->list_lock);
 
+
+  ASSERT(frame_map->list_lock.holder == thread_current());
   struct frame *ret = list_entry(list_begin(&frame_map->ordered_list), struct frame, link);
   list_remove(&ret->link);
   list_push_back(&frame_map->ordered_list, &ret->link);
 
-  lock_release(&frame_map->list_lock);
   return ret;
 }
 
@@ -66,16 +66,16 @@ static void frame_init_single(uint32_t idx, enum palloc_flags flags, struct supp
   add_frame_to_eviction_struct(f);
 }
 
-int frame_map_get_init_size(int pages_cnt){
-  return sizeof(struct frame_map) + sizeof(struct frame) * pages_cnt;
-}
+
 /**
  * initilizes frame internal structures in the kernel pool.
  * @param pages_cnt
  */
-void frame_map_init(void *p, int pages_cnt){
-  frame_map = (struct frame_map*)p;
-  frame_map->frames = (struct frame*)(((struct frame_map*)p) + 1);
+void frame_map_init(int pages_cnt){
+  frame_map = (struct frame_map *)malloc(sizeof(struct frame_map));
+  ASSERT(frame_map);
+  frame_map->frames = (struct frame *)malloc(sizeof(struct frame) * pages_cnt);
+  ASSERT(frame_map->frames);
   lock_init(&frame_map->list_lock);
   list_init(&frame_map->ordered_list);
   frame_map->num_of_frames = pages_cnt;
@@ -88,6 +88,7 @@ static void frame_second_chance_algorithm(void){
   struct frame *f;
 
   struct lock *lock;
+  lock_acquire(&frame_map->list_lock);
   while(1){
     f = get_next_frame_to_test();
     if(lock_try_acquire(lock = &f->user->lock)) {
@@ -109,6 +110,7 @@ static void frame_second_chance_algorithm(void){
     }
 
   }
+  lock_release(&frame_map->list_lock);
 
   /**
    * deadlock is not gonna happen. I'm not locking in order,

@@ -18,8 +18,7 @@ struct frame_map{
     struct lock list_lock;
     struct list ordered_list;
 };
-int frame_map_get_init_size(int pages_cnt);
-void frame_map_init(void *p, int pages_cnt);
+void frame_map_init(int pages_cnt);
 void * frame_get_page(enum palloc_flags flags, struct supp_pagedir_entry *user);
 void frame_free_page_no_lock (void *kpage);
 void frame_set_prohibit(void *kpage, bool prohibit);
