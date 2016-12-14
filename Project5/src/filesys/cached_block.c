@@ -1,6 +1,7 @@
 #include "cached_block.h"
 #include "../threads/malloc.h"
 #include "../lib/string.h"
+#include "../lib/stddef.h"
 
 struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   ASSERT(block);
@@ -15,24 +16,49 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
 }
 
 void cached_block_read(struct cached_block *cache, block_sector_t sector, void *buffer, int info){
+  ASSERT(buffer);
+  ASSERT(cache);
+
   cached_block_read_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, info);
 }
 
 void cached_block_read_segment(struct cached_block *cache, block_sector_t sector, int s, int e, void *buffer, int info){
-  char buf[BLOCK_SECTOR_SIZE];
+  ASSERT(buffer);
+  ASSERT(cache);
+  ASSERT(s < e);
+
+  void *buf = malloc(BLOCK_SECTOR_SIZE);
   block_read(cache->block, sector, buf);
   memcpy(buffer, buf + s, e - s);
+  free(buf);
 }
 
 void cached_block_write(struct cached_block *cache, block_sector_t sector, void *buffer, int info){
-  cached_block_write_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, info);
+  ASSERT(cache);
+  ASSERT(buffer);
+
+  cached_block_write_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, NULL, info);
 }
 
-void cached_block_write_segment(struct cached_block *cache, block_sector_t sector, int s, int e, void *buffer, int info){
-  char buf[BLOCK_SECTOR_SIZE];
-  block_read(cache->block, sector, buf);
-  memcpy(buf + s, buffer, e - s);
-  block_write(cache->block, sector, buf);
+void cached_block_write_segment(struct cached_block *cache, block_sector_t sector, int s, int e,
+                                void *buffer, void *full_buffer, int info){
+  ASSERT(cache);
+  ASSERT(buffer);
+
+  if(s == 0 && e == BLOCK_SECTOR_SIZE) full_buffer = buffer;
+
+  if(full_buffer){
+    block_write(cache->block, sector, full_buffer);
+  }else{
+    void *buf = malloc(BLOCK_SECTOR_SIZE);
+
+    block_read(cache->block, sector, buf);
+    memcpy(buf + s, buffer, e - s);
+    block_write(cache->block, sector, buf);
+
+    free(buf);
+  }
+
 }
 
 block_sector_t cached_block_size (struct cached_block *cache){
