@@ -247,6 +247,5 @@ void supp_pagedir_set_prohibit(void *upage, bool prohibit){
     kpage = pagedir_get_page(thread_current()->pagedir, pg_round_down(upage));
   }
 
-  if(prohibit) ASSERT(kpage);
   lock_release(&f->lock);
 }

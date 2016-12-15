@@ -27,13 +27,17 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
   ASSERT(cache);
   ASSERT(s < e);
 
-  void *buf = malloc(BLOCK_SECTOR_SIZE);
-  block_read(cache->block, sector, buf);
-  memcpy(buffer, buf + s, e - s);
-  free(buf);
+  if(s == 0 && e == BLOCK_SECTOR_SIZE){
+    block_read(cache->block, sector, buffer);
+  }else {
+    void *buf = malloc(BLOCK_SECTOR_SIZE);
+    block_read(cache->block, sector, buf);
+    memcpy(buffer, buf + s, e - s);
+    free(buf);
+  }
 }
 
-void cached_block_write(struct cached_block *cache, block_sector_t sector, void *buffer, int info){
+void cached_block_write(struct cached_block *cache, block_sector_t sector,const void *buffer, int info){
   ASSERT(cache);
   ASSERT(buffer);
 
@@ -41,7 +45,7 @@ void cached_block_write(struct cached_block *cache, block_sector_t sector, void 
 }
 
 void cached_block_write_segment(struct cached_block *cache, block_sector_t sector, int s, int e,
-                                void *buffer, void *full_buffer, int info){
+                                const void *buffer,const void *full_buffer, int info){
   ASSERT(cache);
   ASSERT(buffer);
 
