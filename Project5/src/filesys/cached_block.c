@@ -12,7 +12,6 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   cache->block = block;
   cache->buffer_len = buffer_elem;
   cache->entries = calloc(buffer_elem, sizeof(struct cache_entry));
-  lock_init(&cache->lock);
 
   return cache;
 }
@@ -29,8 +28,6 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
   ASSERT(cache);
   ASSERT(s < e);
 
-  lock_acquire(&cache->lock);
-
   if(s == 0 && e == BLOCK_SECTOR_SIZE){
     block_read(cache->block, sector, buffer);
   }else {
@@ -39,8 +36,6 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
     memcpy(buffer, buf + s, e - s);
     free(buf);
   }
-
-  lock_release(&cache->lock);
 }
 
 void cached_block_write(struct cached_block *cache, block_sector_t sector,const void *buffer, int info){
@@ -57,8 +52,6 @@ void cached_block_write_segment(struct cached_block *cache, block_sector_t secto
 
   if(s == 0 && e == BLOCK_SECTOR_SIZE) full_buffer = buffer;
 
-  lock_acquire(&cache->lock);
-
   if(full_buffer){
     block_write(cache->block, sector, full_buffer);
   }else{
@@ -70,8 +63,6 @@ void cached_block_write_segment(struct cached_block *cache, block_sector_t secto
 
     free(buf);
   }
-
-  lock_release(&cache->lock);
 
 }
 

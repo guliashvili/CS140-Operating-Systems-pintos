@@ -10,7 +10,6 @@ struct cached_block{
     struct block *block;
     int buffer_len;
     struct cache_entry *entries;
-    struct lock lock;
 };
 
 struct cached_block *cached_block_init(struct block *block, int buffer_elem);
