@@ -20,11 +20,9 @@ static struct user_file_info *find_open_file(int fd){
 /* Obtain a file's size. */
 int filesize_sys (int fd){
   int ans;
-  lock_acquire(&fileSystem);
   struct user_file_info *f= find_open_file(fd);
   if(f == NULL) ans = -1;
   else ans = file_length(f->f);
-  lock_release((&fileSystem));
   return ans;
 }
 /* Read from a file. */
@@ -36,13 +34,11 @@ int read_sys (int fd, void * buffer, unsigned size){
     return size;
   }else{
     int ans;
-    lock_acquire(&fileSystem);
     struct user_file_info *f= find_open_file(fd);
     if(f == NULL) ans = -1;
     else{
       ans = file_read(f->f, buffer, size);
     }
-    lock_release((&fileSystem));
     return ans;
   }
 }
@@ -53,45 +49,35 @@ int write_sys (int fd , const void * buffer , unsigned size ){
     return size;
   }else{
     int ans;
-    lock_acquire(&fileSystem);
     struct user_file_info *f= find_open_file(fd);
     if(f == NULL) ans = -1;
     else ans = file_write(f->f, buffer, size);
-    lock_release((&fileSystem));
     return ans;
   }
 }
 /* Change position in a file. */
 void seek_sys (int fd, unsigned position){
-  lock_acquire(&fileSystem);
   struct user_file_info *f= find_open_file(fd);
   if(f != NULL) file_seek(f->f, position);
-  lock_release((&fileSystem));
 }
 /* Report current position in a file. */
 unsigned tell_sys (int fd){
   int ans = 0;
-  lock_acquire(&fileSystem);
   struct user_file_info *f= find_open_file(fd);
   if(f != NULL) file_tell(f->f);
-  lock_release((&fileSystem));
   return ans;
 }
 /* Close a file. */
 void close_sys (int fd){
-  lock_acquire(&fileSystem);
   struct user_file_info *f = find_open_file(fd);
   if (f != NULL) {
     file_close(f->f);
     list_remove(&f->link);
     free(f);
   }
-  lock_release(&fileSystem);
 }
 
 static int add_file(struct file *f){
-  ASSERT(fileSystem.holder == thread_current());
-
   struct user_file_info *info = malloc(sizeof(struct user_file_info));
   info->f = f;
   info->fd = FD_C++;
@@ -105,37 +91,36 @@ int open_sys (const char *file_name, bool readonly){
   if(file_name == NULL)
     return -1;
   int ret_FDC;
-  lock_acquire(&fileSystem);
+  
   struct file *f = filesys_open(file_name);
   if(f == NULL) ret_FDC = -1;
   else {
     if(readonly) file_deny_write(f);
     ret_FDC = add_file(f);
   }
-  lock_release((&fileSystem));
+  
   return ret_FDC;
 }
 
 /* Create a file. */
 bool create_sys (const char * file , unsigned initial_size ){
   bool ans;
-  lock_acquire(&fileSystem);
+  
   ans = filesys_create(file, initial_size);
-  lock_release((&fileSystem));
+  
   return ans;
 }
 /* Delete a file. */
 bool remove_sys (const char * file) {
   bool ans;
-  lock_acquire(&fileSystem);
   ans = filesys_remove(file);
-  lock_release((&fileSystem));
+  
   return ans;
 }
 
 int file_reopen_sys(int fd){
   int ans;
-  lock_acquire(&fileSystem);
+  
   struct user_file_info *f = find_open_file(fd);
   if(f == NULL) ans = -1;
   else{
@@ -143,6 +128,6 @@ int file_reopen_sys(int fd){
     file_seek(file, 0);
     ans = add_file(file);
   }
-  lock_release((&fileSystem));
+  
   return ans;
 }

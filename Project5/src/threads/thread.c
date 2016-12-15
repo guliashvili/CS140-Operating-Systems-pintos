@@ -319,8 +319,6 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
 
   //Close opened files and free their structs.
-
-  lock_acquire(&fileSystem);
   for (e = list_begin (&t->open_files); e != list_end (&t->open_files);)
   {
     struct user_file_info *tc = list_entry (e, struct user_file_info, link);
@@ -328,7 +326,6 @@ thread_exit (void)
     e = list_next (e);
     free(tc);
   }
-  lock_release(&fileSystem);
 
   intr_disable ();
   list_remove (&t->allelem);

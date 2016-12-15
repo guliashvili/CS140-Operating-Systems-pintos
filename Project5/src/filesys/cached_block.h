@@ -1,6 +1,7 @@
 #ifndef PROJECT5_CACHE_H
 #define PROJECT5_CACHE_H
 #include "../devices/block.h"
+#include "../threads/synch.h"
 
 struct cache_entry{
   int z;
@@ -9,6 +10,7 @@ struct cached_block{
     struct block *block;
     int buffer_len;
     struct cache_entry *entries;
+    struct lock lock;
 };
 
 struct cached_block *cached_block_init(struct block *block, int buffer_elem);

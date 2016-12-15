@@ -10,7 +10,6 @@
 
 /* Block device that contains the file system. */
 struct cached_block *fs_device_cached;
-struct lock fileSystem;
 void filesys_init (bool format);
 void filesys_done (void);
 bool filesys_create (const char *name, off_t initial_size);
