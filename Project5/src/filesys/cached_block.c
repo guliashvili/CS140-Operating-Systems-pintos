@@ -3,6 +3,7 @@
 #include "../lib/string.h"
 #include "../lib/stddef.h"
 
+
 struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   ASSERT(block);
   ASSERT(buffer_elem >= 0);
@@ -33,7 +34,7 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
   }else {
     void *buf = malloc(BLOCK_SECTOR_SIZE);
     block_read(cache->block, sector, buf);
-    memcpy(buffer, buf + s, e - s);
+    atomic_gio_memcpy(buffer, buf + s, e - s);
     free(buf);
   }
 }
@@ -58,7 +59,7 @@ void cached_block_write_segment(struct cached_block *cache, block_sector_t secto
     void *buf = malloc(BLOCK_SECTOR_SIZE);
 
     block_read(cache->block, sector, buf);
-    memcpy(buf + s, buffer, e - s);
+    atomic_gio_memcpy(buf + s, buffer, e - s);
     block_write(cache->block, sector, buf);
 
     free(buf);

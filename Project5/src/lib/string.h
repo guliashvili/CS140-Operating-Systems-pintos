@@ -4,6 +4,8 @@
 #include <stddef.h>
 
 /* Standard. */
+void *
+atomic_gio_memcpy (void *dst_, const void *src_, size_t size);
 void *memcpy (void *, const void *, size_t);
 void *memmove (void *, const void *, size_t);
 char *strncat (char *, const char *, size_t);

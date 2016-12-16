@@ -47,7 +47,6 @@ struct inode
   };
 
 
-static struct inode *inode_reopen_no_lock (struct inode *inode);
 
 /* Returns the block device sector that contains byte offset POS
    within INODE.
@@ -132,7 +131,7 @@ inode_open (block_sector_t sector)
   lock_acquire(sectors_lock + sector);
 
   if(inodes[sector]){
-    inode = inode_reopen_no_lock(inodes[sector]);
+    inode = inode_reopen(inodes[sector]);
   }else {
 
     /* Allocate memory. */
@@ -154,22 +153,14 @@ inode_open (block_sector_t sector)
   return inode;
 }
 /* Reopens and returns INODE. */
-static struct inode *inode_reopen_no_lock (struct inode *inode)
+struct inode *
+inode_reopen (struct inode *inode)
 {
+  // if someone did reopen so he has the inode, if I id it from inode open then write protects this inode
   if (inode != NULL) {
     __sync_add_and_fetch(&inode->open_cnt, 1);
   }
   return inode;
-}
-/* Reopens and returns INODE. */
-struct inode *
-inode_reopen (struct inode *inode)
-{
-  lock_acquire(sectors_lock + inode->sector);
-  struct inode *ret = inode_reopen_no_lock(inode);
-  lock_release(sectors_lock + inode->sector);
-
-  return ret;
 }
 
 /* Returns INODE's inode number. */
@@ -183,34 +174,33 @@ inode_get_inumber (const struct inode *inode)
    If this was the last reference to INODE, frees its memory.
    If INODE was also a removed inode, frees its blocks. */
 void
-inode_close (struct inode *inode) 
-{
+inode_close (struct inode *inode) {
   /* Ignore null pointer. */
   if (inode == NULL)
     return;
   int sector = inode->sector;
   lock_acquire(sectors_lock + inode->sector);
-  bool closed = false;
   /* Release resources if this was the last opener. */
   if (__sync_sub_and_fetch(&inode->open_cnt, 1) == 0) // it has write lock, no need for __sync
-    {
-      inodes[inode->sector] = NULL;
+  {
+    inodes[inode->sector] = NULL;
+    lock_release(sectors_lock + sector);
 
-      /* Deallocate blocks if removed. */
-      if (__sync_fetch(&inode->removed))
-        {
-          free_map_release (inode->sector, 1);
+    /* Deallocate blocks if removed. */
+    if (__sync_fetch(&inode->removed)) {
+      free_map_release(inode->sector, 1);
 
-          struct inode_disk meta_data;
-          cached_block_read (fs_device_cached, inode->sector, &meta_data, 0);
-          free_map_release (meta_data.start,
-                            bytes_to_sectors (meta_data.length));
+      struct inode_disk meta_data;
+      cached_block_read(fs_device_cached, inode->sector, &meta_data, 0);
+      free_map_release(meta_data.start,
+                       bytes_to_sectors(meta_data.length));
 
-        }
-
-      free (inode); 
     }
-  lock_release(sectors_lock + sector);
+
+    free(inode);
+  } else {
+    lock_release(sectors_lock + sector);
+  }
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who

@@ -80,7 +80,7 @@ void close_sys (int fd){
 static int add_file(struct file *f){
   struct user_file_info *info = malloc(sizeof(struct user_file_info));
   info->f = f;
-  info->fd = FD_C++;
+  info->fd = __sync_fetch_and_add(&FD_C, 1);
   list_push_back(&thread_current()->open_files, &info->link);
 
   return info->fd;

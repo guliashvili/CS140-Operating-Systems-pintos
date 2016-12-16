@@ -18,6 +18,12 @@ void r_lock_release(struct rw_lock *l);
 void w_lock_acquire(struct rw_lock *l);
 void w_lock_release(struct rw_lock *l);
 
+#define exchange(a, b) { \
+                            enum intr_level old_level = intr_disable ();  \
+                            a ^= b;                                        \
+                            b ^= a;                                         \
+                            intr_set_level (old_level);                      \
+                        }
 
 
 

@@ -1,5 +1,6 @@
 #include <string.h>
 #include <debug.h>
+#include "stdint.h"
 
 /* Copies SIZE bytes from SRC to DST, which must not overlap.
    Returns DST. */
@@ -17,7 +18,44 @@ memcpy (void *dst_, const void *src_, size_t size)
 
   return dst_;
 }
+/* Copies SIZE bytes from SRC to DST, which must not overlap.
+   Returns DST. */
+void *
+atomic_gio_memcpy (void *dst_, const void *src_, size_t size)
+{
+  uint64_t *dst64 = dst_;
+  const uint64_t *src64 = src_;
 
+  while(size >= sizeof(uint64_t)){
+    size -= sizeof(uint64_t);
+    __sync_lock_test_and_set(dst64, *src64), dst64++, src32++;
+  }
+
+  uint32_t *dst32 = dst64;
+  const uint32_t *src32 = src64;
+
+  while(size >= sizeof(uint32_t)){
+    size -= sizeof(uint32_t);
+    __sync_lock_test_and_set(dst32, *src32), dst32++, src32++;
+  }
+
+  uint16_t *dst16 = dst32;
+  const uint16_t *src16 = src32;
+
+  while(size >= sizeof(uint16_t)){
+    size -= sizeof(uint16_t);
+    __sync_lock_test_and_set(dst16, *src16), dst16++, src16++;
+  }
+  uint8_t *dst8 = dst16;
+  const uint8_t *src8 = src16;
+
+  while(size >= sizeof(uint8_t)){
+    size -= sizeof(uint8_t);
+    __sync_lock_test_and_set(dst8, *src8), dst8++, src8++;
+  }
+  ASSERT(size == 0);
+  return dst_;
+}
 /* Copies SIZE bytes from SRC to DST, which are allowed to
    overlap.  Returns DST. */
 void *

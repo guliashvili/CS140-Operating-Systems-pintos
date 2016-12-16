@@ -2,14 +2,24 @@
 #define PROJECT5_CACHE_H
 #include "../devices/block.h"
 #include "../threads/synch.h"
+#include "../threads/gio_synch.h"
+
+#define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE)
 
 struct cache_entry{
-  int z;
+  char data[BLOCK_SECTOR_SIZE];
+  //struct lock lock;
 };
+
 struct cached_block{
     struct block *block;
     int buffer_len;
     struct cache_entry *entries;
+
+    /*
+    int addr[SECTOR_NUM];
+    struct rw_lock locks[SECTOR_NUM];
+    */
 };
 
 struct cached_block *cached_block_init(struct block *block, int buffer_elem);

@@ -109,6 +109,7 @@ struct thread
     struct thread *parent_thread;
     struct list open_files;
     struct list mmap_address;
+    bool waits_write;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
