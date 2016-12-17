@@ -5,6 +5,8 @@
 #include "../lib/kernel/list.h"
 
 #define __sync_fetch(a) __sync_fetch_and_add(a, 0)
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 struct rw_lock{
     struct list waiters;

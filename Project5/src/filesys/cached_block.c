@@ -20,6 +20,8 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
 void cached_block_read(struct cached_block *cache, block_sector_t sector, void *buffer, int info){
   ASSERT(buffer);
   ASSERT(cache);
+  ASSERT(sector >= 0);
+  ASSERT(sector < 8 * 1024 * 1024 / BLOCK_SECTOR_SIZE);
 
   cached_block_read_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, info);
 }
@@ -43,14 +45,23 @@ void cached_block_write(struct cached_block *cache, block_sector_t sector,const 
   ASSERT(cache);
   ASSERT(buffer);
 
+  ASSERT(sector >= 0);
+  ASSERT(sector < 8 * 1024 * 1024 / BLOCK_SECTOR_SIZE);
+
   cached_block_write_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, NULL, info);
 }
+struct inode_disk
+{
+    block_sector_t lvl1;               /* First data sector. */
+    off_t length;                       /* File size in bytes. */
+    unsigned magic;                     /* Magic number. */
+    uint32_t unused[125];               /* Not used. */
+} PACKED;
 
 void cached_block_write_segment(struct cached_block *cache, block_sector_t sector, int s, int e,
                                 const void *buffer,const void *full_buffer, int info){
   ASSERT(cache);
   ASSERT(buffer);
-
   if(s == 0 && e == BLOCK_SECTOR_SIZE) full_buffer = buffer;
 
   if(full_buffer){
