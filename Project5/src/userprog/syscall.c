@@ -33,6 +33,11 @@ static int read_sys_wrapper (int fd, void * buffer, unsigned size);
 static void halt (void);
 static int exec (const char *file);
 static int wait (int);
+static bool chdir (const char * dir);
+static bool mkdir (const char * dir);
+static bool readdir (int fd , char * name);
+static bool isdir (int fd);
+static int inumber (int fd);
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
 
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
@@ -161,12 +166,43 @@ syscall_handler (struct intr_frame *f)
     case SYS_MUNMAP:
       munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
       break;
+    case SYS_CHDIR:
+      ret = chdir(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "chdir 1"));
+      ITH_ARG_POINTER(f, 1, char *, -1, false, false, "chdir 1*");
+    case SYS_MKDIR:
+      ret = mkdir(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "mkdir 1"));
+      ITH_ARG_POINTER(f, 1, char *, -1, false, false, "mkdir 1*");
+    case SYS_READDIR:
+      ret = readdir(ITH_ARG(f, 1, int, false, false, "readir1"),
+                    ITH_ARG_POINTER(f, 2, char *, -1, false, true, "readdir 2"));
+      ITH_ARG_POINTER(f, 2, char *, -1, false, false, "readir 2*");
+    case SYS_ISDIR:
+      ret = isdir(ITH_ARG(f, 1, int, false, false, "isdir1"));
+    case SYS_INUMBER:
+      ret = inumber(ITH_ARG(f, 1, int, false, false, "isnumber1"));
     default:
       exit(-1, "Cold not find syscall id(syscall)");
   }
   if(ret != 23464464){
     f->eax = ret;
   }
+}
+static bool chdir (const char * dir){
+  PANIC("chdir %s",dir);
+}
+static bool mkdir (const char * dir){
+  PANIC("mkdir %s",dir);
+}
+
+static bool readdir (int fd , char * name){
+  PANIC("readdir %d %s",fd, name);
+}
+
+static bool isdir (int fd){
+  PANIC("%d",fd);
+}
+static int inumber (int fd){
+  PANIC("%d",fd);
 }
 
 /* Terminate this process. */

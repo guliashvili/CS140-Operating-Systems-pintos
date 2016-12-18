@@ -55,57 +55,46 @@ struct inode
 
 static char zeros[BLOCK_SECTOR_SIZE] = {0};
 
-static uint16_t lookup(struct inode_disk *inode_disk, uint16_t upage, bool create){
+static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, uint16_t *res){
   int a = upage >> 7;
   int b = upage & ((1<<8)-1);
-  ASSERT(inode_disk->length != 0);
 
   struct inode_disk_lvl *lvl2 = malloc(sizeof(struct inode_disk_lvl));
   struct inode_disk_lvl *lvl1 = malloc(sizeof(struct inode_disk_lvl));
 
-  block_sector_t pointer;
+  block_sector_t pointer1 = -1, pointer2 = -1;
   cached_block_read(fs_device_cached, inode_disk->lvl1, lvl1, 0);
-  bool created = false;
+
   if(lvl1->map[a] == (uint16_t)-1){
     if(!create)
       ASSERT(0);
-    ASSERT(free_map_allocate (&pointer));
-    lvl1->map[a] = pointer;
+    ASSERT(free_map_allocate (&pointer1));
+    lvl1->map[a] = pointer1;
 
     memset(lvl2, -1, sizeof(struct inode_disk_lvl));
-    cached_block_write (fs_device_cached, lvl1->map[a], lvl2, 0);
-    cached_block_write (fs_device_cached, inode_disk->lvl1, lvl1, 0);
-    created = true;
   }else{
     cached_block_read(fs_device_cached, lvl1->map[a], lvl2, 0);
   }
   if(lvl2->map[b] == (uint16_t)-1){
     if(!create)
       ASSERT(0);
-    ASSERT(free_map_allocate (&pointer));
-    lvl2->map[b] = pointer;
-    cached_block_write(fs_device_cached, lvl2->map[b], zeros, 0);
-    cached_block_write(fs_device_cached, lvl1->map[a], lvl2, 0);
+    ASSERT(free_map_allocate (&pointer2));
+    lvl2->map[b] = pointer2;
   }
   if(lvl2->map[b] == (uint16_t)-1) ASSERT(0);
 
-  uint16_t ret = lvl2->map[b];
-  if(ret == (uint16_t)-1) ASSERT(0);
+  if(pointer2 != -1){
+    cached_block_write(fs_device_cached, lvl2->map[b], zeros, 0);
+    cached_block_write(fs_device_cached, lvl1->map[a], lvl2, 0);
+  }
+  if(pointer1 != -1){
+    cached_block_write (fs_device_cached, inode_disk->lvl1, lvl1, 0);
+  }
+
+  if(res) *res = lvl2->map[b];
   free(lvl1);free(lvl2);
-  return ret;
-}
-/* Returns the block device sector that contains byte offset POS
-   within INODE.
-   Returns -1 if INODE does not contain data for a byte at offset
-   POS. */
-static block_sector_t
-byte_to_sector (const struct inode_disk *inode_disk, off_t pos)
-{
-  ASSERT (inode_disk != NULL);
-  if (pos < inode_disk->length) {
-    return lookup(inode_disk, pos / BLOCK_SECTOR_SIZE, false);
-  }else
-    return -1;
+
+  return pointer1 != -1 || pointer2 != -1;
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -118,7 +107,8 @@ inode_init (void)
 {
   inodes = calloc(SECTOR_NUM, sizeof(struct inode*));
   sectors_lock = malloc(SECTOR_NUM * sizeof(struct lock));
-  for(int i = 0; i < SECTOR_NUM; i++){
+  int i;
+  for(i = 0; i < SECTOR_NUM; i++){
     lock_init(sectors_lock + i);
   }
 }
@@ -148,10 +138,9 @@ inode_create (block_sector_t sector, off_t length)
   memset(lvl1, -1, sizeof(struct inode_disk_lvl));
   cached_block_write (fs_device_cached, disk_inode->lvl1, lvl1, 0);
   free(lvl1);
-
-
-  for(int i = 0; i < (length + BLOCK_SECTOR_SIZE - 1)/BLOCK_SECTOR_SIZE; i++){
-    uint16_t sec = lookup(disk_inode, i, true);
+  int i;
+  for(i = 0; i <= (length + BLOCK_SECTOR_SIZE - 1)/BLOCK_SECTOR_SIZE; i++){
+    lookup(disk_inode, i, true, NULL);
   }
 
   free(disk_inode);
@@ -236,10 +225,12 @@ inode_close (struct inode *inode) {
       struct inode_disk_lvl *lvl2 = malloc(sizeof(struct inode_disk_lvl));
 
       cached_block_read(fs_device_cached, meta_data->lvl1, lvl1, 0);
-      for(int i = 0; i < INODE_DISK_LVL_N; i++){
+      int i;
+      for(i = 0; i < INODE_DISK_LVL_N; i++){
         if(lvl1->map[i] == (uint16_t)-1) continue;
         cached_block_read(fs_device_cached, lvl1->map[i], lvl2, 0);
-        for(int j = 0; j < INODE_DISK_LVL_N; j++){
+        int j;
+        for(j = 0; j < INODE_DISK_LVL_N; j++){
           if(lvl2->map[j] == (uint16_t)-1) continue;
 
           free_map_release(lvl2->map[j]);
@@ -285,7 +276,12 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   while (size > 0)
   {
     /* Disk sector to read, starting byte offset within sector. */
-    block_sector_t sector_idx = byte_to_sector (&meta_data, offset);
+    uint16_t sector_idx;
+    lookup (&meta_data, offset / BLOCK_SECTOR_SIZE, false, &sector_idx);
+    if(sector_idx == -1){
+      PANIC("givi");
+    }
+    if((uint16_t)sector_idx == (uint16_t)-1) break;
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -328,10 +324,18 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   struct inode_disk *meta_data = malloc(sizeof(struct inode_disk));
 
   cached_block_read (fs_device_cached, inode->sector, meta_data, 0);
+  int i;
+  for(i = (offset + size + BLOCK_SECTOR_SIZE -1) / BLOCK_SECTOR_SIZE; i >= 0 ; i--)
+    lookup(meta_data, i, true, NULL);
+
+  meta_data->length = MAX(meta_data->length, offset + size);
+
   while (size > 0)
   {
     /* Sector to write, starting byte offset within sector. */
-    block_sector_t sector_idx = byte_to_sector (meta_data, offset);
+    uint16_t sector_idx;
+    lookup (meta_data, offset / BLOCK_SECTOR_SIZE, false, &sector_idx);
+    ASSERT(sector_idx != -1);
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -355,6 +359,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     offset += chunk_size;
     bytes_written += chunk_size;
   }
+  cached_block_write(fs_device_cached, inode->sector, meta_data, 0);
 
   free(meta_data);
 
