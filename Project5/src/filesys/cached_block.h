@@ -7,21 +7,20 @@
 #define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE)
 
 struct cache_entry{
-  char data[BLOCK_SECTOR_SIZE];
-  //struct lock lock;
+    char data[BLOCK_SECTOR_SIZE];
+    struct lock lock;
+    int holder;
 };
 
 struct cached_block{
     struct block *block;
     int buffer_len;
     struct cache_entry *entries;
-
-    /*
-    int addr[SECTOR_NUM];
-    struct rw_lock locks[SECTOR_NUM];
-    */
+    int *addr;
+    struct rw_lock *locks;
 };
 
+void fflush_all(struct cached_block *cache);
 struct cached_block *cached_block_init(struct block *block, int buffer_elem);
 void cached_block_read_segment(struct cached_block *cache, block_sector_t sector, int s, int e, void *buffer, int info);
 void cached_block_read(struct cached_block *cache, block_sector_t sector, void *buffer, int info);

@@ -7,6 +7,22 @@ void rw_lock_init(struct rw_lock *l){
   list_init(&l->waiters);
 }
 
+bool r_try_lock_acquire(struct rw_lock *l){
+  ASSERT(l);
+  bool ret;
+  enum intr_level old_level = intr_disable ();
+  ASSERT(thread_current() != l->w_holder);
+  thread_current()->waits_write = false;
+  if(l->w_holder){
+    ret = false;
+  }else {
+    ret = true;
+    l->level++;
+  }
+  intr_set_level (old_level);
+  return ret;
+}
+
 void r_lock_acquire(struct rw_lock *l){
   ASSERT(l);
   enum intr_level old_level = intr_disable ();
@@ -43,7 +59,6 @@ void r_lock_upgrade_to_w(struct rw_lock *l){
   ASSERT(l);
   enum intr_level old_level = intr_disable ();
   ASSERT(l->level);
-  ASSERT(!thread_current()->waits_write);
   l->level--;
 
   thread_current()->waits_write = true;
@@ -56,6 +71,21 @@ void r_lock_upgrade_to_w(struct rw_lock *l){
 
 
   intr_set_level (old_level);
+}
+bool w_try_lock_acquire(struct rw_lock *l){
+  ASSERT(l);
+  enum intr_level old_level = intr_disable ();
+  bool ret;
+  thread_current()->waits_write = true;
+  if(l->w_holder || l->level) {
+    ret = false;
+  }else {
+    l->w_holder = thread_current();
+    ret = true;
+  }
+
+  intr_set_level (old_level);
+  return ret;
 }
 
 void w_lock_acquire(struct rw_lock *l){
