@@ -10,15 +10,12 @@ void rw_lock_init(struct rw_lock *l){
 void r_lock_acquire(struct rw_lock *l){
   ASSERT(l);
   enum intr_level old_level = intr_disable ();
-
-  bool is_first_iteration = true;
+  ASSERT(thread_current() != l->w_holder);
   thread_current()->waits_write = false;
-  while(l->w_holder){
-    ASSERT(is_first_iteration);
+  for(int i = 0; l->w_holder; i++){
     list_push_back (&l->waiters, &thread_current ()->elem);
     thread_block ();
-
-    is_first_iteration = false;
+    ASSERT(i < 100);
   }
 
   l->level++;
@@ -29,7 +26,7 @@ void r_lock_acquire(struct rw_lock *l){
 void r_lock_release(struct rw_lock *l){
   ASSERT(l);
   enum intr_level old_level = intr_disable ();
-
+  ASSERT(l->w_holder == NULL);
   ASSERT(l->level);
   if(--l->level == 0 && !list_empty(&l->waiters)){
     ASSERT(!l->w_holder);
@@ -42,18 +39,34 @@ void r_lock_release(struct rw_lock *l){
   intr_set_level (old_level);
 }
 
+void r_lock_upgrade_to_w(struct rw_lock *l){
+  ASSERT(l);
+  enum intr_level old_level = intr_disable ();
+  ASSERT(l->level);
+  ASSERT(!thread_current()->waits_write);
+  l->level--;
+
+  thread_current()->waits_write = true;
+  for(int i = 0; l->w_holder || l->level; i++){
+    list_push_front(&l->waiters, &thread_current()->elem);
+    thread_block();
+    ASSERT(i < 100);
+  }
+  l->w_holder = thread_current();
+
+
+  intr_set_level (old_level);
+}
+
 void w_lock_acquire(struct rw_lock *l){
   ASSERT(l);
   enum intr_level old_level = intr_disable ();
 
-
-  bool is_first_iteration = true;
   thread_current()->waits_write = true;
-  while(l->w_holder || l->level){
-    ASSERT(is_first_iteration);
+  for(int i = 0; l->w_holder || l->level; i++){
     list_push_back(&l->waiters, &thread_current()->elem);
     thread_block();
-    is_first_iteration = false;
+    ASSERT(i < 100);
   }
   l->w_holder = thread_current();
 
