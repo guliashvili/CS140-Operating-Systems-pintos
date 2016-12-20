@@ -184,6 +184,7 @@ thread_create (const char *name, int priority,
 
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
+  ASSERT(PGSIZE >= sizeof(struct thread));
   if (t == NULL)
     return TID_ERROR;
 

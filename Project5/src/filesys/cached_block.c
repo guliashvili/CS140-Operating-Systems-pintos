@@ -3,6 +3,68 @@
 #include "../lib/string.h"
 #include "../lib/stddef.h"
 #include "../lib/random.h"
+#include "../devices/timer.h"
+#include "../threads/vaddr.h"
+
+static int evict(struct cached_block *cache);
+
+static struct cached_block *cached_block_g;
+#define QUEUE_N PGSIZE / 16
+static uint64_t queue_e = 0;
+static uint64_t queue_s = 0;
+static uint16_t queue[QUEUE_N];
+
+#define CACHED_BLOCK_SLEEP_S 10
+static void read_ahead(int sector){
+  struct cached_block *cache = cached_block_g;
+
+  struct rw_lock *l = cache->locks + sector;
+  bool upgraded = false;
+  r_lock_acquire(l);
+
+  int in_ram = cache->addr[sector];
+  if(in_ram != -1){ // is in cache
+
+  }else {
+    r_lock_upgrade_to_w(l);
+    upgraded = true;
+    in_ram = cache->addr[sector]; // until I got write lock someone else(on the same sector)might got write lock and got the buffer
+    if(in_ram != -1) goto finish;
+
+    in_ram = evict(cache);
+
+    if(in_ram != -1){
+      ASSERT(cache->addr[sector] == -1);
+      ASSERT(cache->entries[in_ram].holder == -1);
+      cache->addr[sector] = in_ram;
+      cache->entries[in_ram].holder = sector;
+      ASSERT(cache->entries[in_ram].lock.holder == thread_current());
+      lock_release(&cache->entries[in_ram].lock);
+
+      block_read(cache->block, sector, cache->entries[in_ram].data);
+      goto finish;
+    }
+  }
+
+  finish:
+  if(upgraded) w_lock_release(l);
+  else r_lock_release(l);
+}
+
+static void fflusher (void *cached_block)
+{
+  while(1){
+    for(int i = 0; i < CACHED_BLOCK_SLEEP_S; i++) {
+      timer_msleep(1000);
+      if(queue_s < __sync_fetch(&queue_e)){
+        int get = __sync_fetch(&queue[queue_s++]);
+        if(get >= 0 && get < cached_block_size(cached_block_g))
+          read_ahead(get % QUEUE_N), queue_s++;
+      }
+    }
+    fflush_all((struct cached_block *)cached_block);
+  }
+}
 
 struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   ASSERT(block);
@@ -14,18 +76,26 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   cache->buffer_len = buffer_elem;
   cache->entries = calloc(buffer_elem, sizeof(struct cache_entry));
   for(int i = 0; i < buffer_elem; i++)
-    lock_init(&cache->entries[i].lock), cache->entries[i].holder = -1;
+    lock_init(&cache->entries[i].lock), cache->entries[i].holder = -1, cache->entries[i].dirty = 0, cache->entries[i].accessed = 0;
   cache->locks = malloc(sizeof(struct rw_lock) * SECTOR_NUM);
-  cache->addr = malloc(sizeof(int) * SECTOR_NUM);
+  cache->addr = malloc(sizeof(int8_t) * SECTOR_NUM);
   ASSERT(cache->locks);
   ASSERT(cache->entries);
   for(int i = 0; i < SECTOR_NUM; i++) rw_lock_init(cache->locks + i);
-  memset(cache->addr, -1, sizeof(int) * SECTOR_NUM);
-  return cache;
+  memset(cache->addr, -1, sizeof(int8_t) * SECTOR_NUM);
+
+  thread_create("fflusher", 0, fflusher, cache);
+  return cached_block_g = cache;
 }
 
-static void fflush_single(struct cached_block *cache, int in_ram_index){
-  block_write(cache->block, cache->entries[in_ram_index].holder, cache->entries[in_ram_index].data);
+static void fflush_single(struct cached_block *cache, int in_ram_index) {
+  int dirty_num;
+  while(!__sync_bool_compare_and_swap(&cache->entries[in_ram_index].dirty, dirty_num = __sync_fetch(&cache->entries[in_ram_index].dirty), 0));
+
+  if(dirty_num) {
+    block_write(cache->block, cache->entries[in_ram_index].holder, cache->entries[in_ram_index].data);
+    cache->entries[in_ram_index].dirty = true;
+  }
 }
 void fflush_all(struct cached_block *cache){
   for(int i = 0; i < cache->buffer_len; i++){
@@ -84,7 +154,7 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
   if(in_ram != -1){ // is in cache
     sorry_goto_read_from_cache:
     atomic_gio_memcpy(buffer, cache->entries[in_ram].data + s, e - s);
-
+    __sync_add_and_fetch(&cache->entries[in_ram].accessed, 1);
   }else {
     r_lock_upgrade_to_w(l);
     upgraded = true;
@@ -113,11 +183,14 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
       memcpy(buffer, buf + s, e - s);
       free(buf);
     }
-
   }
 
   if(upgraded) w_lock_release(l);
   else r_lock_release(l);
+
+  if(sector + 1 < cached_block_size(cache))
+    __sync_lock_test_and_set(queue + __sync_fetch_and_add(&queue_e,1) % QUEUE_N, sector + 1);
+
 }
 
 void cached_block_write(struct cached_block *cache, block_sector_t sector,const void *buffer, int info){
@@ -152,6 +225,8 @@ void cached_block_write_segment(struct cached_block *cache, block_sector_t secto
   if(in_ram != -1){
     sorry_goto_write_in_cache:
     atomic_gio_memcpy(cache->entries[in_ram].data + s, buffer, e - s);
+    __sync_add_and_fetch(&cache->entries[in_ram].dirty, 1);
+    __sync_add_and_fetch(&cache->entries[in_ram].accessed, 1);
   }else {
     r_lock_upgrade_to_w(l);
     upgraded = true;
