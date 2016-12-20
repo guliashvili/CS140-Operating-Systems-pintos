@@ -55,12 +55,12 @@ static void fflusher (void *cached_block)
 {
   while(1){
     for(int i = 0; i < CACHED_BLOCK_SLEEP_S; i++) {
-      timer_msleep(1000);
+      timer_msleep(1000);/*
       if(queue_s < __sync_fetch(&queue_e)){
         int get = __sync_fetch(&queue[queue_s++]);
         if(get >= 0 && get < cached_block_size(cached_block_g))
           read_ahead(get % QUEUE_N), queue_s++;
-      }
+      }*/
     }
     fflush_all((struct cached_block *)cached_block);
   }

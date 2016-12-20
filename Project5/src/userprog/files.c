@@ -64,7 +64,7 @@ void seek_sys (int fd, unsigned position){
 unsigned tell_sys (int fd){
   int ans = 0;
   struct user_file_info *f= find_open_file(fd);
-  if(f != NULL) file_tell(f->f);
+  if(f != NULL) ans = file_tell(f->f);
   return ans;
 }
 /* Close a file. */
