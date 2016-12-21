@@ -107,18 +107,26 @@ void fflush_all(struct cached_block *cache){
   }
 }
 
+int evict_I = 0;
 static int evict(struct cached_block *cache){
-  int rnd;
-  for(int i = 0; i < 100; i++){
-    rnd = random_ulong() % cache->buffer_len;
+  for(int try_hard = 0; try_hard < 2; try_hard++)
+  for(int i = 0; i < cache->buffer_len; i++){
+    int rnd = __sync_fetch_and_add(&evict_I, 1) % cache->buffer_len;
     if(lock_try_acquire(&cache->entries[rnd].lock)){
       int holder;
       if((holder = cache->entries[rnd].holder) != -1){
         if(w_try_lock_acquire(&cache->locks[holder])) {
-          fflush_single(cache, rnd);
-          cache->addr[holder] = -1;
-          cache->entries[rnd].holder = -1;
-          w_lock_release(&cache->locks[holder]);
+          if(!cache->entries[rnd].accessed) {
+            fflush_single(cache, rnd);
+            cache->addr[holder] = -1;
+            cache->entries[rnd].holder = -1;
+            w_lock_release(&cache->locks[holder]);
+          }else{
+            cache->entries[rnd].accessed = 0;
+            w_lock_release(&cache->locks[holder]);
+            lock_release(&cache->entries[rnd].lock);
+            continue;
+          }
         }else{
           lock_release(&cache->entries[rnd].lock);
           continue;
