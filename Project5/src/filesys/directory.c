@@ -18,7 +18,7 @@ struct dir_locks{
 struct lock dir_g_lock;
 struct dir_locks *dir_locks_list = NULL;
 
-void dir_init(){
+void dir_init(void){
   lock_init(&dir_g_lock);
 }
 /* A directory. */
@@ -35,6 +35,7 @@ struct dir_entry
     block_sector_t inode_sector;        /* Sector number of header. */
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
+    bool is_dir;
   };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -177,6 +178,24 @@ dir_lookup (const struct dir *dir, const char *name,
   return *inode != NULL;
 }
 
+bool
+dir_lookup_is_dir (const struct dir *dir, const char *name)
+{
+  bool ret;
+  struct dir_entry e;
+
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
+  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
+  if (lookup (dir, name, &e, NULL))
+    ret = e.is_dir;
+  else
+    ret = false;
+  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+
+  return ret;
+}
+
 /* Adds a file named NAME to DIR, which must not already contain a
    file by that name.  The file's inode is in sector
    INODE_SECTOR.
@@ -184,7 +203,7 @@ dir_lookup (const struct dir *dir, const char *name,
    Fails if NAME is invalid (i.e. too long) or a disk or memory
    error occurs. */
 bool
-dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
+dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir)
 {
   struct dir_entry e;
   off_t ofs;
@@ -219,6 +238,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   /* Write slot. */
   e.in_use = true;
+  e.is_dir = is_dir;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;

@@ -7,6 +7,7 @@
 #include "filesys/inode.h"
 #include "filesys/directory.h"
 #include "cached_block.h"
+#include "../filesys/directory.h"
 
 /* Partition that contains the file system. */
 struct cached_block *fs_device_cached;
@@ -52,8 +53,25 @@ filesys_create (const char *name, off_t initial_size)
   bool success = (dir != NULL
                   && free_map_allocate (&inode_sector)
                   && inode_create (inode_sector, initial_size)
-                  && dir_add (dir, name, inode_sector));
+                  && dir_add (dir, name, inode_sector, false));
   if (!success && inode_sector != 0) 
+    free_map_release (inode_sector);
+  dir_close (dir);
+
+  return success;
+}
+
+bool
+filesys_create_dir (const char *name)
+{
+  block_sector_t inode_sector = 0;
+  struct dir *dir = dir_open_root ();
+  bool success = (dir != NULL
+                  && free_map_allocate (&inode_sector)
+                  && inode_create (inode_sector, 1)
+                  && dir_create(inode_sector, 1)
+                  && dir_add (dir, name, inode_sector, true));
+  if (!success && inode_sector != 0)
     free_map_release (inode_sector);
   dir_close (dir);
 
