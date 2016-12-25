@@ -18,21 +18,6 @@
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
-#define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE)
-
-/* On-disk inode.
-   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
-struct inode_disk
-{
-    block_sector_t lvl1;               /* First data sector. */
-    off_t length;                       /* File size in bytes. */
-    unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
-} PACKED;
-#define INODE_DISK_LVL_N BLOCK_SECTOR_SIZE / sizeof(uint16_t)
-struct inode_disk_lvl{
-    uint16_t map[INODE_DISK_LVL_N];
-}PACKED;
 
 static off_t inode_length_meta (const struct inode_disk *inode_disk);
 
@@ -43,18 +28,6 @@ bytes_to_sectors (off_t size)
 {
   return DIV_ROUND_UP (size, BLOCK_SECTOR_SIZE);
 }
-
-/* In-memory inode. */
-struct inode
-{
-    struct rw_lock rwlock;
-    struct list_elem elem;
-    block_sector_t sector;              /* Sector number of disk location. */
-    int open_cnt;                       /* Number of openers. */
-    bool removed;                       /* True if deleted, false otherwise. */
-    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-};
-
 static char zeros[BLOCK_SECTOR_SIZE] = {0};
 
 static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, uint16_t *res){

@@ -112,6 +112,7 @@ static int evict(struct cached_block *cache){
   for(int try_hard = 0; try_hard < 2; try_hard++)
   for(int i = 0; i < cache->buffer_len; i++){
     int rnd = __sync_fetch_and_add(&evict_I, 1) % cache->buffer_len;
+    if(rnd < 0) rnd += cache->buffer_len;
     if(lock_try_acquire(&cache->entries[rnd].lock)){
       int holder;
       if((holder = cache->entries[rnd].holder) != -1){

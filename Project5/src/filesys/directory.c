@@ -7,11 +7,24 @@
 #include "threads/malloc.h"
 #include "../threads/gio_synch.h"
 #include "inode.h"
+#include "../threads/malloc.h"
 
+int num_of_open_dirs = 0;
+struct dir_locks{
+    block_sector_t dir_sector;
+    struct rw_lock dirs_lock;
+    int open_cnt;
+};
+struct lock dir_g_lock;
+struct dir_locks *dir_locks_list = NULL;
+
+void dir_init(){
+  lock_init(&dir_g_lock);
+}
 /* A directory. */
 struct dir 
   {
-    struct rw_lock lock;
+    int lock_ind;
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
   };
@@ -41,7 +54,22 @@ dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
-      rw_lock_init(&dir->lock);
+
+      lock_acquire(&dir_g_lock);
+      int i;
+      for(i = 0; i < num_of_open_dirs; i++)
+        if(dir_locks_list[i].dir_sector == inode->sector) break;
+      if(i == num_of_open_dirs){
+        dir_locks_list = realloc(dir_locks_list, sizeof(struct dir_entry) * (++num_of_open_dirs));
+        dir_locks_list[i].dir_sector = inode->sector;
+        rw_lock_init(&dir_locks_list[i].dirs_lock);
+        dir_locks_list[i].open_cnt = 0;
+      }
+
+      dir_locks_list[i].open_cnt++;
+      lock_release(&dir_g_lock);
+
+      dir->lock_ind = i;
       return dir;
     }
   else
@@ -74,6 +102,18 @@ dir_close (struct dir *dir)
 {
   if (dir != NULL)
     {
+      lock_acquire(&dir_g_lock);
+      int i;
+      for(i = 0; i < num_of_open_dirs; i++)
+        if(dir_locks_list[i].dir_sector == dir->inode->sector) break;
+      ASSERT(i != num_of_open_dirs);
+      if(--dir_locks_list[i].open_cnt == 0){
+        dir_locks_list[i] = dir_locks_list[--num_of_open_dirs];
+        dir_locks_list = realloc(dir_locks_list, sizeof(struct dir_entry) * num_of_open_dirs);
+      }
+
+      lock_release(&dir_g_lock);
+
       inode_close (dir->inode);
       free (dir);
     }
@@ -127,12 +167,12 @@ dir_lookup (const struct dir *dir, const char *name,
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-  r_lock_acquire(&dir->lock);
+  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
   if (lookup (dir, name, &e, NULL))
     *inode = inode_open (e.inode_sector);
   else
     *inode = NULL;
-  r_lock_release(&dir->lock);
+  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
 
   return *inode != NULL;
 }
@@ -157,7 +197,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
 
-  w_lock_acquire(&dir->lock);
+  w_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
 
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
@@ -184,7 +224,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 
  done:
-  w_lock_release(&dir->lock);
+  w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
 
   return success;
 }
@@ -203,7 +243,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  w_lock_acquire(&dir->lock);
+  w_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
@@ -224,7 +264,7 @@ dir_remove (struct dir *dir, const char *name)
 
  done:
   inode_close (inode);
-  w_lock_release(&dir->lock);
+  w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
   return success;
 }
 
@@ -234,7 +274,7 @@ dir_remove (struct dir *dir, const char *name)
 bool
 dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
-  r_lock_acquire(&dir->lock);
+  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
   struct dir_entry e;
   for(int i = 0; i < inode_length(dir->inode); i++){
     ASSERT(inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e);
@@ -242,10 +282,10 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
     if (e.in_use)
     {
       strlcpy (name, e.name, NAME_MAX + 1);
-      r_lock_release(&dir->lock);
+      r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
       return true;
     }
   }
-  r_lock_release(&dir->lock);
+  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
   return false;
 }
