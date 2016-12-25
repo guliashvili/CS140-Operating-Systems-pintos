@@ -10,7 +10,7 @@
    After directories are implemented, this maximum length may be
    retained, but much longer full path names must be allowed. */
 #define NAME_MAX 14
-
+struct dir;
 struct inode;
 void dir_init(void);
 /* Opening and closing directories. */

@@ -8,6 +8,7 @@
 #include "synch.h"
 #include "../filesys/file.h"
 #include "userprog/mmap.h"
+#include "../filesys/directory.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -110,6 +111,7 @@ struct thread
     struct list open_files;
     struct list mmap_address;
     bool waits_write;
+    struct dir *current_dir;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

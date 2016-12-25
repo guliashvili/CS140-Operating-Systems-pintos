@@ -36,4 +36,10 @@ int read_sys (int fd, void * buffer, unsigned size);
 int write_sys (int fd , const void * buffer , unsigned size);
 void seek_sys (int fd, unsigned position);
 int file_reopen_sys(int fd);
+
+bool chdir (const char * dir);
+bool mkdir (const char * dir);
+bool readdir (int fd , char * name);
+bool isdir (int fd);
+int inumber (int fd);
 #endif //PROJECT4_FILES_H

@@ -33,11 +33,6 @@ static int read_sys_wrapper (int fd, void * buffer, unsigned size);
 static void halt (void);
 static int exec (const char *file);
 static int wait (int);
-static bool chdir (const char * dir);
-static bool mkdir (const char * dir);
-static bool readdir (int fd , char * name);
-static bool isdir (int fd);
-static int inumber (int fd);
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name);
 
 static void check_pointer(uint32_t esp, void *s, bool grow, bool prohibit, const char *name){
@@ -187,23 +182,7 @@ syscall_handler (struct intr_frame *f)
     f->eax = ret;
   }
 }
-static bool chdir (const char * dir){
-  PANIC("chdir %s",dir);
-}
-static bool mkdir (const char * dir){
-  PANIC("mkdir %s",dir);
-}
 
-static bool readdir (int fd , char * name){
-  PANIC("readdir %d %s",fd, name);
-}
-
-static bool isdir (int fd){
-  PANIC("%d",fd);
-}
-static int inumber (int fd){
-  PANIC("%d",fd);
-}
 
 /* Terminate this process. */
 void exit (int status, const char *caller){

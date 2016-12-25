@@ -212,6 +212,8 @@ thread_create (const char *name, int priority,
   init_child_struct(tc, t->tid);
   list_push_back(&t->parent_thread->child_list, &tc->link);
 
+  t->current_dir = dir_open_root();
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -341,7 +343,10 @@ thread_exit (void)
   }
   lock_release(&t->child_list_lock);
 
+
   t = thread_current();
+  dir_close(t->current_dir);
+
   t->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();

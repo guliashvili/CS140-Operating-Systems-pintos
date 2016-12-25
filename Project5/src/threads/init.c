@@ -92,6 +92,7 @@ main (void)
      then enable console locking. */
   thread_init ();
   console_init ();
+  inode_init ();
   dir_init();
 
   /* Greet user. */

@@ -131,3 +131,21 @@ int file_reopen_sys(int fd){
   
   return ans;
 }
+
+bool chdir (const char * dir){
+  PANIC("chdir %s",dir);
+}
+bool mkdir (const char * dir){
+  PANIC("mkdir %s",dir);
+}
+
+bool readdir (int fd , char * name){
+  PANIC("readdir %d %s",fd, name);
+}
+
+bool isdir (int fd){
+  PANIC("%d",fd);
+}
+int inumber (int fd){
+  PANIC("%d",fd);
+}
