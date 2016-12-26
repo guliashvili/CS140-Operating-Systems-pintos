@@ -35,7 +35,7 @@ struct dir_entry
     block_sector_t inode_sector;        /* Sector number of header. */
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
-    bool is_dir;
+    int is_dir;
   };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -48,7 +48,7 @@ dir_create (block_sector_t sector, size_t entry_cnt) {
 /* Opens and returns the directory for the given INODE, of which
    it takes ownership.  Returns a null pointer on failure. */
 struct dir *
-dir_open (struct inode *inode) 
+dir_open (struct inode *inode)
 {
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)

@@ -1,5 +1,4 @@
 #include "files.h"
-#include "mmap.h"
 
 
 static int FD_C = 2;
@@ -144,6 +143,7 @@ bool readdir (int fd , char * name){
 }
 
 bool isdir (int fd){
+  struct user_file_info *f= find_open_file(fd);
   PANIC("%d",fd);
 }
 int inumber (int fd){

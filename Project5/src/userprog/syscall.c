@@ -169,7 +169,7 @@ syscall_handler (struct intr_frame *f)
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "mkdir 1*");
     case SYS_READDIR:
       ret = readdir(ITH_ARG(f, 1, int, false, false, "readir1"),
-                    ITH_ARG_POINTER(f, 2, char *, -1, false, true, "readdir 2"));
+                    ITH_ARG_POINTER(f, 2, char *, -1, true, true, "readdir 2"));
       ITH_ARG_POINTER(f, 2, char *, -1, false, false, "readir 2*");
     case SYS_ISDIR:
       ret = isdir(ITH_ARG(f, 1, int, false, false, "isdir1"));

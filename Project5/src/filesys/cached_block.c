@@ -10,11 +10,15 @@ static int evict(struct cached_block *cache);
 
 static struct cached_block *cached_block_g;
 #define QUEUE_N PGSIZE / 16
+#ifdef READ_AHEAD
 static uint64_t queue_e = 0;
 static uint64_t queue_s = 0;
 static uint16_t queue[QUEUE_N];
+#endif
 
 #define CACHED_BLOCK_SLEEP_S 10
+#define READ_AHEAD
+#undef READ_AHEAD
 static void read_ahead(int sector){
   struct cached_block *cache = cached_block_g;
 
@@ -55,12 +59,14 @@ static void fflusher (void *cached_block)
 {
   while(1){
     for(int i = 0; i < CACHED_BLOCK_SLEEP_S; i++) {
-      timer_msleep(1000);/*
+      timer_msleep(1000);
+#ifdef READ_AHEAD
       if(queue_s < __sync_fetch(&queue_e)){
         int get = __sync_fetch(&queue[queue_s++]);
         if(get >= 0 && get < cached_block_size(cached_block_g))
           read_ahead(get % QUEUE_N), queue_s++;
-      }*/
+      }
+#endif
     }
     fflush_all((struct cached_block *)cached_block);
   }
@@ -197,9 +203,10 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
   if(upgraded) w_lock_release(l);
   else r_lock_release(l);
 
+#ifdef READ_AHEAD
   if(sector + 1 < cached_block_size(cache))
     __sync_lock_test_and_set(queue + __sync_fetch_and_add(&queue_e,1) % QUEUE_N, sector + 1);
-
+#endif
 }
 
 void cached_block_write(struct cached_block *cache, block_sector_t sector,const void *buffer, int info){

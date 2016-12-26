@@ -93,6 +93,7 @@ struct thread_child{
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+#define MAX_DIR_LENGTH 100
 struct thread
 {
     /* Owned by thread.c. */
@@ -111,7 +112,7 @@ struct thread
     struct list open_files;
     struct list mmap_address;
     bool waits_write;
-    struct dir *current_dir;
+    struct dir *active_dir;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
