@@ -54,7 +54,7 @@ dir_open (struct inode *inode)
   if (inode != NULL && dir != NULL)
     {
       dir->inode = inode;
-      dir->pos = 0;
+      dir->pos = sizeof(block_sector_t);
 
       lock_acquire(&dir_g_lock);
       int i;
@@ -142,9 +142,9 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  for (ofs = 0; ofs < inode_length(dir->inode);
+  for (ofs = sizeof(block_sector_t); ofs < inode_length(dir->inode);
        ofs += sizeof e) {
-    ASSERT(inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e);
+    if(inode_read_at (dir->inode, &e, sizeof e, ofs) != sizeof e) break;
     if (e.in_use && !strcmp(name, e.name)) {
       if (ep != NULL)
         *ep = e;
@@ -229,7 +229,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
-  for (ofs = 0; ofs < inode_length(dir->inode);
+  for (ofs = sizeof(block_sector_t); ofs < inode_length(dir->inode);
        ofs += sizeof e) {
     ASSERT(inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e);
     if (!e.in_use)
@@ -242,6 +242,12 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+  if(success && is_dir){
+    struct inode *inode = inode_open(e.inode_sector);
+    ASSERT(inode);
+    inode_write_at(inode, &dir->inode->sector, sizeof(dir->inode->sector), 0);
+    inode_close(inode);
+  }
 
  done:
   w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
@@ -297,7 +303,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
   struct dir_entry e;
   for(int i = 0; i < inode_length(dir->inode); i++){
-    ASSERT(inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e);
+    if(inode_read_at (dir->inode, &e, sizeof e, dir->pos) != sizeof e) break;
     dir->pos += sizeof e;
     if (e.in_use)
     {
@@ -308,4 +314,13 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   }
   r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
   return false;
+}
+
+struct dir * dir_get_parent_dir(struct dir *dir){
+  block_sector_t sector;
+  if(dir->inode->sector == ROOT_DIR_SECTOR) sector = ROOT_DIR_SECTOR;
+  else
+    ASSERT(inode_read_at(dir->inode, &sector, sizeof(block_sector_t), 0) == sizeof(block_sector_t));
+
+  return dir_open(inode_open(sector));
 }

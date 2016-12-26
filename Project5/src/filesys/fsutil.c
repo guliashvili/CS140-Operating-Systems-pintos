@@ -10,6 +10,7 @@
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
+#include "directory.h"
 
 /* List files in the root directory. */
 void
@@ -118,8 +119,10 @@ fsutil_extract (char **argv UNUSED)
           printf ("Putting '%s' into the file system...\n", file_name);
 
           /* Create destination file. */
-          if (!filesys_create (file_name, size))
+          struct dir *dir = dir_open_root();
+          if (!filesys_create (file_name, dir, size, false))
             PANIC ("%s: create failed", file_name);
+          dir_close(dir);
           dst = filesys_open (file_name);
           if (dst == NULL)
             PANIC ("%s: open failed", file_name);

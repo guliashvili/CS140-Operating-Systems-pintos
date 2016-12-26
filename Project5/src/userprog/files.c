@@ -1,4 +1,5 @@
 #include "files.h"
+#include "../lib/string.h"
 
 
 static int FD_C = 2;
@@ -14,8 +15,33 @@ static struct user_file_info *find_open_file(int fd){
   if(e == NULL) return NULL;
   else return list_entry(e, struct user_file_info, link);
 }
+struct dir *merge_dir(struct dir *active_dir, char *request){
+  struct dir *work;
+  if(request[0] == '/') work = dir_open_root(), request++;
+  else work = dir_reopen(active_dir);
 
+  char *token, *save_ptr;
 
+  for (token = strtok_r (request, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr)){
+    struct dir *next = NULL;
+    if(strlen(token) == 2 && token[0] == '.' && token[1] == '.'){
+        next = dir_get_parent_dir(work);
+    }else if(strlen(token) == 1 && token[0] == '.') {
+        next = dir_reopen(work);
+    }else{
+      struct inode *tmp = NULL;
+      dir_lookup(work, token, &tmp);
+      if(tmp != NULL && dir_lookup_is_dir(work, token)){
+        next = dir_open(tmp);
+      }
+    }
+    dir_close(work);
+    work = next;
+    if(work == NULL) return NULL;
+  }
+  return work;
+}
 /* Obtain a file's size. */
 int filesize_sys (int fd){
   int ans;
@@ -105,7 +131,7 @@ int open_sys (const char *file_name, bool readonly){
 bool create_sys (const char * file , unsigned initial_size ){
   bool ans;
   
-  ans = filesys_create(file, initial_size);
+  ans = filesys_create(file, thread_current()->active_dir, initial_size, false);
   
   return ans;
 }
