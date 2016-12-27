@@ -19,7 +19,7 @@ char *strrchr (const char *, int);
 size_t strspn (const char *, const char *);
 char *strstr (const char *, const char *);
 void *memset (void *, int, size_t);
-size_t strlen (const char *);
+int strlen (const char *);
 
 /* Extensions. */
 size_t strlcpy (char *, const char *, size_t);

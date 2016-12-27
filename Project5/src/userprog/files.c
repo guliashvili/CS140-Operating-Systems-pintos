@@ -1,9 +1,9 @@
 #include "files.h"
 #include "../lib/string.h"
-
+#include "../filesys/inode.h"
 
 static int FD_C = 2;
-static int add_file(struct file *f);
+static int add_file(struct file *f, struct dir *dir);
 static struct user_file_info *find_open_file(int fd);
 static bool equals_fd(const struct list_elem *elem, void *fd);
 
@@ -31,9 +31,12 @@ struct dir *merge_dir(struct dir *active_dir, char *request){
         next = dir_reopen(work);
     }else{
       struct inode *tmp = NULL;
-      dir_lookup(work, token, &tmp);
-      if(tmp != NULL && dir_lookup_is_dir(work, token)){
+      bool is_dir;
+      dir_lookup(work, token, &tmp, &is_dir);
+      if(tmp != NULL && is_dir){
         next = dir_open(tmp);
+      }else{
+        if(tmp) inode_close(tmp);
       }
     }
     dir_close(work);
@@ -97,15 +100,17 @@ void close_sys (int fd){
   struct user_file_info *f = find_open_file(fd);
   if (f != NULL) {
     file_close(f->f);
+    if(f->dir) dir_close(f->dir);
     list_remove(&f->link);
     free(f);
   }
 }
 
-static int add_file(struct file *f){
+static int add_file(struct file *f, struct dir *dir){
   struct user_file_info *info = malloc(sizeof(struct user_file_info));
   info->f = f;
   info->fd = __sync_fetch_and_add(&FD_C, 1);
+  info->dir = dir;
   list_push_back(&thread_current()->open_files, &info->link);
 
   return info->fd;
@@ -116,14 +121,15 @@ int open_sys (const char *file_name, bool readonly){
   if(file_name == NULL)
     return -1;
   int ret_FDC;
-  
-  struct file *f = filesys_open(file_name);
+  bool is_dir;
+  struct file *f = filesys_open(file_name, &is_dir);
+  struct dir *dir = NULL;
+  if(is_dir && f) dir = dir_open(file_get_inode(f));
   if(f == NULL) ret_FDC = -1;
   else {
     if(readonly) file_deny_write(f);
-    ret_FDC = add_file(f);
+    ret_FDC = add_file(f, dir);
   }
-  
   return ret_FDC;
 }
 
@@ -151,27 +157,63 @@ int file_reopen_sys(int fd){
   else{
     struct file *file = file_reopen(f->f);
     file_seek(file, 0);
-    ans = add_file(file);
+    ans = add_file(file, f->dir ? dir_reopen(f->dir) : NULL);
   }
   
   return ans;
 }
 
 bool chdir (const char * dir){
-  PANIC("chdir %s",dir);
+  bool ret;
+  char *dir_non_c = malloc(strlen(dir) + 1);
+  strlcpy(dir_non_c, dir, strlen(dir));
+  struct dir * res = merge_dir(thread_current()->active_dir, dir_non_c);
+  if(!res) ret = false;
+  else{
+    dir_close(thread_current()->active_dir);
+    thread_current()->active_dir = res;
+    ret = true;
+  }
+  free(dir_non_c);
+  return ret;
 }
 bool mkdir (const char * dir){
-  PANIC("mkdir %s",dir);
+
+  bool ret;
+  char *dir_non_c = malloc(strlen(dir) + 1);
+  strlcpy(dir_non_c, dir, strlen(dir));
+  int i;
+  for(i = strlen(dir_non_c) - 1; i >= 0 && dir_non_c[i] != '/'; dir_non_c[i] = 0, i--);
+  if(i == strlen(dir_non_c) - 1){
+    free(dir_non_c);
+    return false;
+  }
+  for(int j = i; j >= 0 && dir_non_c[j] == '/'; dir_non_c[j] = 0, j--);
+
+  struct dir * res = merge_dir(thread_current()->active_dir, dir_non_c);
+  if(!res) ret = false;
+  else{
+    strlcpy(dir_non_c, dir + i + 1, strlen(dir) - i - 1);
+    filesys_create(dir_non_c, res, 0, true);
+    dir_close(res);
+  }
+  free(dir_non_c);
+  return ret;
 }
 
 bool readdir (int fd , char * name){
-  PANIC("readdir %d %s",fd, name);
+  struct user_file_info *f= find_open_file(fd);
+  if(f == NULL) return false;
+  if(!f->dir) return false;
+
+  dir_readdir(f->dir, name);
+  return true;
 }
 
 bool isdir (int fd){
   struct user_file_info *f= find_open_file(fd);
-  PANIC("%d",fd);
+  return f->dir;
 }
 int inumber (int fd){
-  PANIC("%d",fd);
+  return !isdir(fd);
 }

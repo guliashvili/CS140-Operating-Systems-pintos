@@ -327,7 +327,7 @@ memset (void *dst_, int value, size_t size)
 }
 
 /* Returns the length of STRING. */
-size_t
+int
 strlen (const char *string) 
 {
   const char *p;

@@ -22,8 +22,7 @@ void dir_close (struct dir *);
 struct inode *dir_get_inode (struct dir *);
 struct dir * dir_get_parent_dir(struct dir *dir);
 /* Reading and writing. */
-bool dir_lookup (const struct dir *, const char *name, struct inode **);
-bool dir_lookup_is_dir (const struct dir *dir, const char *name);
+bool dir_lookup (const struct dir *, const char *name, struct inode **, bool *is_dir);
 bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir);
 bool dir_remove (struct dir *, const char *name);
 bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);

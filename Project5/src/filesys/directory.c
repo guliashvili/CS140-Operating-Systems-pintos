@@ -162,38 +162,21 @@ lookup (const struct dir *dir, const char *name,
    a null pointer.  The caller must close *INODE. */
 bool
 dir_lookup (const struct dir *dir, const char *name,
-            struct inode **inode) 
+            struct inode **inode, bool *is_dir)
 {
   struct dir_entry e;
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
   r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
-  if (lookup (dir, name, &e, NULL))
-    *inode = inode_open (e.inode_sector);
-  else
+  if (lookup (dir, name, &e, NULL)) {
+    *inode = inode_open(e.inode_sector);
+    if(is_dir) *is_dir = e.is_dir;
+  } else
     *inode = NULL;
   r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
 
   return *inode != NULL;
-}
-
-bool
-dir_lookup_is_dir (const struct dir *dir, const char *name)
-{
-  bool ret;
-  struct dir_entry e;
-
-  ASSERT (dir != NULL);
-  ASSERT (name != NULL);
-  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
-  if (lookup (dir, name, &e, NULL))
-    ret = e.is_dir;
-  else
-    ret = false;
-  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
-
-  return ret;
 }
 
 /* Adds a file named NAME to DIR, which must not already contain a
@@ -302,8 +285,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
   struct dir_entry e;
-  for(int i = 0; i < inode_length(dir->inode); i++){
-    if(inode_read_at (dir->inode, &e, sizeof e, dir->pos) != sizeof e) break;
+  while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e){
     dir->pos += sizeof e;
     if (e.in_use)
     {

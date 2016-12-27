@@ -10,6 +10,7 @@ struct user_file_info{
     int fd;
     struct list_elem link;
     struct file * f;
+    struct dir *dir;
 };
 
 
