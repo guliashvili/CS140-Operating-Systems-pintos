@@ -182,18 +182,18 @@ bool mkdir (const char * dir){
   bool ret;
   char *dir_non_c = malloc(strlen(dir) + 1);
   strlcpy(dir_non_c, dir, strlen(dir));
+  //printf("full %s\n",dir_non_c);
   int i;
-  for(i = strlen(dir_non_c) - 1; i >= 0 && dir_non_c[i] != '/'; dir_non_c[i] = 0, i--);
-  if(i == strlen(dir_non_c) - 1){
-    free(dir_non_c);
-    return false;
-  }
+  for(i = strlen(dir_non_c) - 1; i >= 0 && dir_non_c[i] == '/'; dir_non_c[i] = 0, i--);
+  for(; i >= 0 && dir_non_c[i] != '/'; dir_non_c[i] = 0, i--);
   for(int j = i; j >= 0 && dir_non_c[j] == '/'; dir_non_c[j] = 0, j--);
-
+  //printf("the rest %s\n",dir_non_c);
   struct dir * res = merge_dir(thread_current()->active_dir, dir_non_c);
+ // printf("res %d",res);
   if(!res) ret = false;
   else{
     strlcpy(dir_non_c, dir + i + 1, strlen(dir) - i - 1);
+    //printf("folder name %s\n",dir_non_c);
     filesys_create(dir_non_c, res, 0, true);
     dir_close(res);
   }
@@ -212,8 +212,9 @@ bool readdir (int fd , char * name){
 
 bool isdir (int fd){
   struct user_file_info *f= find_open_file(fd);
-  return f->dir;
+  return f && f->dir;
 }
 int inumber (int fd){
-  return !isdir(fd);
+  struct user_file_info *f= find_open_file(fd);
+  return f && !f->dir;
 }

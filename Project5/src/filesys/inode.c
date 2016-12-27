@@ -199,7 +199,6 @@ inode_close (struct inode *inode) {
   /* Ignore null pointer. */
   if (inode == NULL)
     return;
-  int sector = inode->sector;
   lock_acquire(&l_lock);
 
   /* Release resources if this was the last opener. */

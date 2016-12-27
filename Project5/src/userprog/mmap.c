@@ -20,12 +20,6 @@ static struct mmap_info *find_open_mmap(int mmap_id){
   else return list_entry(e, struct mmap_info, link);
 }
 
-static struct mmap_info *find_open_mmap_with_fd(int fd_id){
-  struct list_elem *e =  list_find(&thread_current()->mmap_address, equals_fd_id, (void*)&fd_id);
-  if(e == NULL) return NULL;
-  else return list_entry(e, struct mmap_info, link);
-}
-
 struct lock mmap_lock;
 
 void mmap_init(void){

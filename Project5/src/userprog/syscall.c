@@ -25,6 +25,7 @@
 #include "files.h"
 #include "mmap.h"
 #include "../lib/debug.h"
+#include "syscall.h"
 
 
 static void syscall_handler (struct intr_frame *);
@@ -101,43 +102,55 @@ syscall_handler (struct intr_frame *f)
 {
   int sys_call_id = ITH_ARG(f, 0, int, false, true, "sys_call_id");
   uint32_t ret = 23464464;
+
+  static int c = 0;
   switch (sys_call_id){
     /* Projects 2 and later. */
     case SYS_HALT:                   /* Halt the operating system. */
+      HIDDEN_MESSAGE = SYS_HALT;
       halt();
       break;
     case SYS_EXIT:                   /* Terminate this process. */
+      HIDDEN_MESSAGE = SYS_EXIT;
       exit(ITH_ARG(f, 1, int, false, false, "EXIT1"), "Exit syscall");
       break;
     case SYS_EXEC:                   /* Start another process. */
+      HIDDEN_MESSAGE = SYS_EXEC;
       ret = exec(ITH_ARG_POINTER(f, 1, const char *, -1, false, false, "EXEC1"));
       break;
     case SYS_WAIT:                   /* Wait for a child process to die. */
+      HIDDEN_MESSAGE = SYS_WAIT;
       ret = wait(ITH_ARG(f, 1, int, false, false,"WAIT1"));
       break;
     case SYS_CREATE:                 /* Create a file. */
+      HIDDEN_MESSAGE = SYS_CREATE;
       ret = create_sys(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "CREATE1"),
                    ITH_ARG(f, 2, unsigned int, false, false, "CREATE2"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "CREATE1*");
       break;
     case SYS_REMOVE:                 /* Delete a file. */
+      HIDDEN_MESSAGE = SYS_REMOVE;
       ret = remove_sys(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "REMOVE1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "REMOVE1*");
       break;
     case SYS_OPEN:                   /* Open a file. */
+      HIDDEN_MESSAGE = SYS_OPEN;
       ret = open_sys(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "OPEN1"), false);
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "OPEN1*");
       break;
     case SYS_FILESIZE:               /* Obtain a file's size. */
+      HIDDEN_MESSAGE = SYS_FILESIZE;
       ret = filesize_sys(ITH_ARG(f, 1, int, false, false, "FILESIZE1"));
       break;
     case SYS_READ:                   /* Read from a file. */
+      HIDDEN_MESSAGE = SYS_READ;
       ret = read_sys_wrapper(ITH_ARG(f, 1, int, false, false,"READ1"),
                  ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33"), true, true,"READ2"),
                  ITH_ARG(f, 3, unsigned int, false, false, "READ3"));
       ITH_ARG_POINTER(f, 2, void*, ITH_ARG(f, 3, unsigned int, false, false,"READ33*"), false, false,"READ2*");
       break;
     case SYS_WRITE:                  /* Write to a file. */
+      HIDDEN_MESSAGE = SYS_WRITE;
       ret = write_sys(ITH_ARG(f, 1, int, false, false,"WRITE1"),
                   ITH_ARG_POINTER(f, 2,const void *, ITH_ARG(f, 3, unsigned int, false, false,"WRITE33"), true, true,"WRITE2"),
                   ITH_ARG(f, 3, unsigned int, false, false,"WRITE3"));
@@ -146,47 +159,65 @@ syscall_handler (struct intr_frame *f)
 
       break;
     case SYS_SEEK:                   /* Change position in a file. */
+      HIDDEN_MESSAGE = SYS_SEEK;
       seek_sys(ITH_ARG(f, 1, int, false, false,"SEEK1"), ITH_ARG(f, 2, unsigned int, false, false,"SEEK2"));
       break;
     case SYS_TELL:                   /* Report current position in a file. */
+      HIDDEN_MESSAGE = SYS_TELL;
       ret = tell_sys(ITH_ARG(f, 1, int, false, false,"TELL1"));
       break;
     case SYS_CLOSE:                  /* Close a file. */
+      HIDDEN_MESSAGE = SYS_CLOSE;
       close_sys(ITH_ARG(f, 1, int, false, false, "close1"));
       break;
     case SYS_MMAP:
+      HIDDEN_MESSAGE = SYS_MMAP;
       ret = mmap_sys(ITH_ARG(f, 1, int, false, false, "MMAP"),
                  (void*)ITH_ARG(f, 2, int, false, false, "MMAP2"), 0, -666, 0);
       break;
     case SYS_MUNMAP:
+      HIDDEN_MESSAGE = SYS_MUNMAP;
+      c++;
       munmap_sys(ITH_ARG(f, 1, int, false, false, "MUNMAP1"));
       break;
     case SYS_CHDIR:
+      HIDDEN_MESSAGE = SYS_CHDIR;
       ret = chdir(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "chdir 1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "chdir 1*");
+      break;
     case SYS_MKDIR:
+      HIDDEN_MESSAGE = SYS_MKDIR;
       ret = mkdir(ITH_ARG_POINTER(f, 1, char *, -1, false, true, "mkdir 1"));
       ITH_ARG_POINTER(f, 1, char *, -1, false, false, "mkdir 1*");
+      break;
     case SYS_READDIR:
+      HIDDEN_MESSAGE = SYS_READDIR;
       ret = readdir(ITH_ARG(f, 1, int, false, false, "readir1"),
                     ITH_ARG_POINTER(f, 2, char *, -1, true, true, "readdir 2"));
       ITH_ARG_POINTER(f, 2, char *, -1, false, false, "readir 2*");
+      break;
     case SYS_ISDIR:
+      HIDDEN_MESSAGE = SYS_ISDIR;
       ret = isdir(ITH_ARG(f, 1, int, false, false, "isdir1"));
+      break;
     case SYS_INUMBER:
+      HIDDEN_MESSAGE = SYS_INUMBER;
       ret = inumber(ITH_ARG(f, 1, int, false, false, "isnumber1"));
+      break;
     default:
       exit(-1, "Cold not find syscall id(syscall)");
   }
+
   if(ret != 23464464){
     f->eax = ret;
   }
+  HIDDEN_MESSAGE = -1;
 }
 
 
 /* Terminate this process. */
 void exit (int status, const char *caller){
-  //if(status == -1) PANIC("%d %s", status, caller);
+  //if(status == -1) PANIC("%d %s %d",status, caller, HIDDEN_MESSAGE);
   struct thread *t = thread_current()->parent_thread;
   if(t != NULL) {
     struct thread_child *tc = thread_set_child_exit_status(t, thread_tid(), status);
@@ -215,13 +246,10 @@ static int wait (int pid){
 }
 
 static int read_sys_wrapper (int fd, void * buffer, unsigned size) {
-  if (fd < -666) HIDDEN_MESSAGE = -fd;
-  else {
-    struct supp_pagedir_entry **ee = supp_pagedir_lookup(thread_current()->supp_pagedir, buffer, false);
-    ASSERT(ee);
-    ASSERT(*ee);
-    if ((*ee)->flags & PAL_READONLY) exit(-1, "could not write in readonly page");
-    int ret = read_sys(fd, buffer, size);
-    return ret;
-  }
+  struct supp_pagedir_entry **ee = supp_pagedir_lookup(thread_current()->supp_pagedir, buffer, false);
+  ASSERT(ee);
+  ASSERT(*ee);
+  if ((*ee)->flags & PAL_READONLY) exit(-1, "could not write in readonly page");
+  int ret = read_sys(fd, buffer, size);
+  return ret;
 }
