@@ -217,7 +217,7 @@ syscall_handler (struct intr_frame *f)
 
 /* Terminate this process. */
 void exit (int status, const char *caller){
-  //if(status == -1) PANIC("%d %s %d",status, caller, HIDDEN_MESSAGE);
+  //if(status != 0) PANIC("%d %s %d",status, caller, HIDDEN_MESSAGE);
   struct thread *t = thread_current()->parent_thread;
   if(t != NULL) {
     struct thread_child *tc = thread_set_child_exit_status(t, thread_tid(), status);
