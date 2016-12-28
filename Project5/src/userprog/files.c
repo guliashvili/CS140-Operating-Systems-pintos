@@ -15,21 +15,23 @@ static struct user_file_info *find_open_file(int fd){
   if(e == NULL) return NULL;
   else return list_entry(e, struct user_file_info, link);
 }
-struct dir *merge_dir(struct dir *active_dir, char *request){
+struct dir *merge_dir(struct dir *active_dir,const char *req){
+  char *request = malloc(strlen(req) + 1);
+  strlcpy(request, req, strlen(req) + 1);
   struct dir *work;
   if(request[0] == '/') {
     //printf("merge_dir: dir_open_root()\n");
-    work = dir_open_root(), request++;
+    work = dir_open_root();
   }
   else{
     //printf("merge_dir: dir_reopen(active_dir)\n");
     work = dir_reopen(active_dir);
   }
-
+  bool is_it = strlen(request) > 2;
   char *token, *save_ptr;
+  for (token = strtok_r (request, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr)){
 
-  for (token = strtok_r (request, " ", &save_ptr); token != NULL;
-       token = strtok_r (NULL, " ", &save_ptr)){
     struct dir *next = NULL;
     if(strlen(token) == 2 && token[0] == '.' && token[1] == '.'){
       //printf("merge_dir: back ..\n");
@@ -57,9 +59,11 @@ struct dir *merge_dir(struct dir *active_dir, char *request){
     work = next;
     if(work == NULL){
       //printf("was null \n");
+      free(request);
       return NULL;
     }
   }
+  free(request);
   return work;
 }
 /* Obtain a file's size. */
@@ -138,7 +142,7 @@ int open_sys (const char *path, bool readonly){
   //printf("%s active inode %d\n","open_sys: ", dir_get_inode(thread_current()->active_dir)->sector);
   if(path == NULL)
     return -1;
-  //printf("open_sys:  %s %d\n", file_name, readonly);
+  //printf("open_sys:  %s %d\n", path, readonly);
   int ret_FDC;
   bool is_dir;
 
@@ -148,6 +152,7 @@ int open_sys (const char *path, bool readonly){
 
 
   struct file *f;
+  const char *prefix = "open_sys: ";
   //printf("%s active inode %d\n",prefix, dir_get_inode(thread_current()->active_dir)->sector);
   char *dir_non_c = malloc(strlen(path) + 1);
   strlcpy(dir_non_c, path, strlen(path) + 1);

@@ -10,22 +10,16 @@
 #include "../threads/malloc.h"
 #include "../tests/filesys/base/syn-read.h"
 
-int num_of_open_dirs = 0;
-struct dir_locks{
-    block_sector_t dir_sector;
-    struct rw_lock dirs_lock;
-    int open_cnt;
-};
-struct lock dir_g_lock;
-struct dir_locks *dir_locks_list = NULL;
+#define REDUCE 1024
+
+struct rw_lock dir_locks_list[SECTOR_NUM / REDUCE];
 
 void dir_init(void){
-  lock_init(&dir_g_lock);
+  for(int i = 0; i < SECTOR_NUM / REDUCE; i++) rw_lock_init(dir_locks_list + i);
 }
 /* A directory. */
 struct dir 
   {
-    int lock_ind;
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
   };
@@ -57,28 +51,13 @@ dir_open (struct inode *inode)
       dir->inode = inode;
       dir->pos = sizeof(block_sector_t);
 
-      lock_acquire(&dir_g_lock);
-      int i;
-      for(i = 0; i < num_of_open_dirs; i++)
-        if(dir_locks_list[i].dir_sector == inode->sector) break;
-      if(i == num_of_open_dirs){
-        dir_locks_list = realloc(dir_locks_list, sizeof(struct dir_entry) * (++num_of_open_dirs));
-        dir_locks_list[i].dir_sector = inode->sector;
-        rw_lock_init(&dir_locks_list[i].dirs_lock);
-        dir_locks_list[i].open_cnt = 0;
-      }
-
-      dir_locks_list[i].open_cnt++;
-      lock_release(&dir_g_lock);
-
-      dir->lock_ind = i;
       return dir;
     }
   else
     {
       inode_close (inode);
       free (dir);
-      return NULL; 
+      return NULL;
     }
 }
 
@@ -93,29 +72,17 @@ dir_open_root (void)
 /* Opens and returns a new directory for the same inode as DIR.
    Returns a null pointer on failure. */
 struct dir *
-dir_reopen (struct dir *dir) 
+dir_reopen (struct dir *dir)
 {
   return dir_open (inode_reopen (dir->inode));
 }
 
 /* Destroys DIR and frees associated resources. */
 void
-dir_close (struct dir *dir) 
+dir_close (struct dir *dir)
 {
   if (dir != NULL)
     {
-      lock_acquire(&dir_g_lock);
-      int i;
-      for(i = 0; i < num_of_open_dirs; i++)
-        if(dir_locks_list[i].dir_sector == dir->inode->sector) break;
-      ASSERT(i != num_of_open_dirs);
-      if(--dir_locks_list[i].open_cnt == 0){
-        dir_locks_list[i] = dir_locks_list[--num_of_open_dirs];
-        dir_locks_list = realloc(dir_locks_list, sizeof(struct dir_entry) * num_of_open_dirs);
-      }
-
-      lock_release(&dir_g_lock);
-
       inode_close (dir->inode);
       free (dir);
     }
@@ -170,14 +137,14 @@ dir_lookup (const struct dir *dir, const char *name,
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
+  r_lock_acquire(&dir_locks_list[dir->inode->sector / REDUCE]);
   if (lookup (dir, name, &e, NULL)) {
     *inode = inode_open(e.inode_sector);
     if(is_dir) *is_dir = e.is_dir;
   } else
     *inode = NULL;
-  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
-  //if(*inode == NULL) printf("dir_lookup: could not find in %d name %s\n", dir->inode->sector, name);
+  r_lock_release(&dir_locks_list[dir->inode->sector / REDUCE]);
+  //if(*inode == NULL) //printf("dir_lookup: could not find in %d name %s\n", dir->inode->sector, name);
   return *inode != NULL;
 }
 
@@ -190,8 +157,7 @@ dir_lookup (const struct dir *dir, const char *name,
 bool
 dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir)
 {
-  //printf("dir_add: adding %s %d %s to dir sector %d length = %d\n",is_dir?"folder":"file",inode_sector,name, dir->inode->sector,
-  //inode_length(dir->inode));
+  //printf("dir_add: adding %s %d %s to dir sector %d length = %d\n",is_dir?"folder":"file",inode_sector,name, dir->inode->sector, inode_length(dir->inode));
   struct dir_entry e;
   off_t ofs;
   bool success = false;
@@ -203,7 +169,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
 
-  w_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
+  w_lock_acquire(&dir_locks_list[dir->inode->sector / REDUCE]);
 
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
@@ -216,6 +182,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
+
   for (ofs = sizeof(block_sector_t); inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
     if (!e.in_use)
@@ -230,6 +197,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   //printf("dir_add: writing file named %s at pos %d\n",name, ofs);
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
   ASSERT(success);
+
   if(success && is_dir){
     struct inode *inode = inode_open(e.inode_sector);
     ASSERT(inode);
@@ -239,10 +207,9 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
 
  done:
   //printf("dir_add: dir sector %d length %d\n",dir->inode->sector, inode_length(dir->inode));
-  w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+  w_lock_release(&dir_locks_list[dir->inode->sector / REDUCE]);
 
   struct inode *node;
-  ASSERT(dir_lookup(dir, name, &node, NULL));
 
   return success;
 }
@@ -261,7 +228,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  w_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
+  w_lock_acquire(&dir_locks_list[dir->inode->sector / REDUCE]);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
@@ -282,7 +249,7 @@ dir_remove (struct dir *dir, const char *name)
 
  done:
   inode_close (inode);
-  w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+  w_lock_release(&dir_locks_list[dir->inode->sector / REDUCE]);
   return success;
 }
 
@@ -292,18 +259,18 @@ dir_remove (struct dir *dir, const char *name)
 bool
 dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
-  r_lock_acquire(&dir_locks_list[dir->lock_ind].dirs_lock);
+  r_lock_acquire(&dir_locks_list[dir->inode->sector / REDUCE]);
   struct dir_entry e;
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e){
     dir->pos += sizeof e;
     if (e.in_use)
     {
       strlcpy (name, e.name, NAME_MAX + 1);
-      r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+      r_lock_release(&dir_locks_list[dir->inode->sector / REDUCE]);
       return true;
     }
   }
-  r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+  r_lock_release(&dir_locks_list[dir->inode->sector / REDUCE]);
   return false;
 }
 
