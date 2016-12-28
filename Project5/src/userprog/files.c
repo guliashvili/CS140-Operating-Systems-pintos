@@ -134,13 +134,44 @@ static int add_file(struct file *f, struct dir *dir){
 }
 
 /* Open a file. */
-int open_sys (const char *file_name, bool readonly){
-  if(file_name == NULL)
+int open_sys (const char *path, bool readonly){
+  //printf("%s active inode %d\n","open_sys: ", dir_get_inode(thread_current()->active_dir)->sector);
+  if(path == NULL)
     return -1;
   //printf("open_sys:  %s %d\n", file_name, readonly);
   int ret_FDC;
   bool is_dir;
-  struct file *f = filesys_open(file_name, &is_dir);
+
+
+
+
+
+
+  struct file *f;
+  //printf("%s active inode %d\n",prefix, dir_get_inode(thread_current()->active_dir)->sector);
+  char *dir_non_c = malloc(strlen(path) + 1);
+  strlcpy(dir_non_c, path, strlen(path) + 1);
+  //printf("%s: full %s %s\n",prefix, dir_non_c, path);
+  int i;
+  for(i = strlen(dir_non_c) - 1; i >= 0 && dir_non_c[i] == '/'; dir_non_c[i] = 0, i--);
+  for(; i >= 0 && dir_non_c[i] != '/'; dir_non_c[i] = 0, i--);
+  for(int j = i; j >= 0 && dir_non_c[j] == '/'; dir_non_c[j] = 0, j--);
+  //printf("%s: the rest %s\n",prefix, dir_non_c);
+  struct dir * res = merge_dir(thread_current()->active_dir, dir_non_c);
+  //printf("%s: res %d\n",prefix, res);
+  if(!res) f = NULL;
+  else{
+    strlcpy(dir_non_c, path + i + 1, strlen(path) - i - 1 + 1);
+    //printf("%s: %s name %s\n",prefix, is_dir?"folder":"file", dir_non_c);
+    f = filesys_open(res, dir_non_c, &is_dir);
+    dir_close(res);
+  }
+  free(dir_non_c);
+
+
+
+
+
   struct dir *dir = NULL;
   //printf("open_sys: file %d dir %d\n",f, dir);
   if(is_dir && f) dir = dir_open(file_get_inode(f));
@@ -153,6 +184,7 @@ int open_sys (const char *file_name, bool readonly){
   return ret_FDC;
 }
 static bool create(const char *prefix, const char *path, unsigned initial_size, bool is_dir){
+  //printf("%s active inode %d\n",prefix, dir_get_inode(thread_current()->active_dir)->sector);
   bool ret;
   char *dir_non_c = malloc(strlen(path) + 1);
   strlcpy(dir_non_c, path, strlen(path) + 1);
@@ -168,7 +200,7 @@ static bool create(const char *prefix, const char *path, unsigned initial_size, 
   else{
     strlcpy(dir_non_c, path + i + 1, strlen(path) - i - 1 + 1);
     //printf("%s: %s name %s\n",prefix, is_dir?"folder":"file", dir_non_c);
-    ret = filesys_create(path, res, initial_size, is_dir);
+    ret = filesys_create(dir_non_c, res, initial_size, is_dir);
     dir_close(res);
   }
   free(dir_non_c);

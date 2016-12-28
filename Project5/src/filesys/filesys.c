@@ -64,15 +64,13 @@ filesys_create (const char *name,struct dir *dir, off_t initial_size, bool is_di
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 struct file *
-filesys_open (const char *name, bool *is_dir)
+filesys_open (struct dir *dir, const char *name, bool *is_dir)
 {
-  struct dir *dir = dir_open_root ();
   struct inode *inode = NULL;
 
   if (dir != NULL) {
     dir_lookup(dir, name, &inode, is_dir);
   }
-  dir_close (dir);
 
   return file_open (inode);
 }

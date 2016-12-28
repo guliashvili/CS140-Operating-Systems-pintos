@@ -8,6 +8,7 @@
 #include "../threads/gio_synch.h"
 #include "inode.h"
 #include "../threads/malloc.h"
+#include "../tests/filesys/base/syn-read.h"
 
 int num_of_open_dirs = 0;
 struct dir_locks{
@@ -164,6 +165,7 @@ bool
 dir_lookup (const struct dir *dir, const char *name,
             struct inode **inode, bool *is_dir)
 {
+  //printf("dir_lookup: looking in %d for name %s\n",dir->inode->sector, name);
   struct dir_entry e;
 
   ASSERT (dir != NULL);
@@ -175,7 +177,7 @@ dir_lookup (const struct dir *dir, const char *name,
   } else
     *inode = NULL;
   r_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
-
+  //if(*inode == NULL) printf("dir_lookup: could not find in %d name %s\n", dir->inode->sector, name);
   return *inode != NULL;
 }
 
@@ -188,6 +190,8 @@ dir_lookup (const struct dir *dir, const char *name,
 bool
 dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir)
 {
+  //printf("dir_add: adding %s %d %s to dir sector %d length = %d\n",is_dir?"folder":"file",inode_sector,name, dir->inode->sector,
+  //inode_length(dir->inode));
   struct dir_entry e;
   off_t ofs;
   bool success = false;
@@ -212,9 +216,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
      inode_read_at() will only return a short read at end of file.
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
-  for (ofs = sizeof(block_sector_t); ofs < inode_length(dir->inode);
+  for (ofs = sizeof(block_sector_t); inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
-    ASSERT(inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e);
     if (!e.in_use)
       break;
   }
@@ -224,7 +227,9 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   e.is_dir = is_dir;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
+  //printf("dir_add: writing file named %s at pos %d\n",name, ofs);
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+  ASSERT(success);
   if(success && is_dir){
     struct inode *inode = inode_open(e.inode_sector);
     ASSERT(inode);
@@ -233,7 +238,11 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   }
 
  done:
+  //printf("dir_add: dir sector %d length %d\n",dir->inode->sector, inode_length(dir->inode));
   w_lock_release(&dir_locks_list[dir->lock_ind].dirs_lock);
+
+  struct inode *node;
+  ASSERT(dir_lookup(dir, name, &node, NULL));
 
   return success;
 }

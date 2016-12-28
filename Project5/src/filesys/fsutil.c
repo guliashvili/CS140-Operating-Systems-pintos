@@ -11,6 +11,7 @@
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
 #include "directory.h"
+#include "../filesys/directory.h"
 
 /* List files in the root directory. */
 void
@@ -40,7 +41,9 @@ fsutil_cat (char **argv)
   char *buffer;
 
   printf ("Printing '%s' to the console...\n", file_name);
-  file = filesys_open (file_name, NULL);
+  struct dir *dir = dir_open_root();
+  file = filesys_open (dir, file_name, NULL);
+  dir_close(dir);
   if (file == NULL)
     PANIC ("%s: open failed", file_name);
   buffer = palloc_get_page (PAL_ASSERT);
@@ -123,7 +126,9 @@ fsutil_extract (char **argv UNUSED)
           if (!filesys_create (file_name, dir, size, false))
             PANIC ("%s: create failed", file_name);
           dir_close(dir);
-          dst = filesys_open (file_name, NULL);
+          dir = dir_open_root();
+          dst = filesys_open (dir, file_name, NULL);
+          dir_close(dir);
           if (dst == NULL)
             PANIC ("%s: open failed", file_name);
 
@@ -185,7 +190,9 @@ fsutil_append (char **argv)
     PANIC ("couldn't allocate buffer");
 
   /* Open source file. */
-  src = filesys_open (file_name, NULL);
+  struct dir *dir = dir_open_root();
+  src = filesys_open (dir, file_name, NULL);
+  dir_close(dir);
   if (src == NULL)
     PANIC ("%s: open failed", file_name);
   size = file_length (src);
