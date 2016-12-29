@@ -3,20 +3,36 @@
 #include "../filesys/inode.h"
 
 static int FD_C = 2;
+static struct dir *merge_dir(struct dir *active_dir,const char *req);
+static void split_str(const char *path, char **s, char **e);
+static void destruct_split(char *s, char *e);
 static int add_file(struct file *f, struct dir *dir);
 static struct user_file_info *find_open_file(int fd);
 static bool equals_fd(const struct list_elem *elem, void *fd);
-
+static bool equals_sector(const struct list_elem *elem, void *sector);
+static struct user_file_info *find_open_file_with_sector(int sector);
 static bool equals_fd(const struct list_elem *elem, void *fd){
   return list_entry (elem, struct user_file_info, link)->fd == *(int*)fd;
 }
+
 static struct user_file_info *find_open_file(int fd){
   struct list_elem *e =  list_find(&thread_current()->open_files, equals_fd, (void*)&fd);
   if(e == NULL) return NULL;
   else return list_entry(e, struct user_file_info, link);
 }
 
-void split_str(const char *path, char **s, char **e){
+static bool equals_sector(const struct list_elem *elem, void *sector){
+  return file_get_inode(list_entry (elem, struct user_file_info, link)->f)->sector == *(int*)sector;
+}
+
+static struct user_file_info *find_open_file_with_sector(int sector){
+  struct list_elem *e =  list_find(&thread_current()->open_files, equals_sector, (void*)&sector);
+  if(e == NULL) return NULL;
+  else return list_entry(e, struct user_file_info, link);
+}
+
+
+static void split_str(const char *path, char **s, char **e){
   ASSERT(s);
   ASSERT(e);
 
@@ -38,12 +54,12 @@ void split_str(const char *path, char **s, char **e){
   for(i = i - 1; i >= 0 && A[i] == '/'; A[i] = 0, i--);
 }
 
-void destruct_split(char *s, char *e){
+static void destruct_split(char *s, char *e){
   free(s);
   free(e);
 }
 
-struct dir *merge_dir(struct dir *active_dir,const char *req){
+static struct dir *merge_dir(struct dir *active_dir,const char *req){
   char *request = malloc(strlen(req) + 1);
   strlcpy(request, req, strlen(req) + 1);
   struct dir *work;
@@ -227,25 +243,30 @@ bool remove_sys (const char * path) {
     if(!inode) {
       ret = false;
       inode_close(inode);
-    }else if(!is_dir){
-      ret = filesys_remove(res, B);
-      dir_close(res);
-      inode_close(inode);
     }else {
-      char s[NAME_MAX + 1];
-      s[0] = 0;
-      struct dir *d = dir_open(inode);
-      dir_readdir(d, s);
-      bool allow = !s[0] && dir_get_inode(d)->sector != dir_get_inode(thread_current()->active_dir)->sector;
-      dir_close(d);
-      if(allow) {
-        ret = filesys_remove(res, B);
-      }else{
+      if(is_dir && find_open_file_with_sector(inode->sector)){
+        inode_close(inode);
         ret = false;
-      }
+      }else if (!is_dir) {
+        ret = filesys_remove(res, B);
+        inode_close(inode);
+      } else {
+        char s[NAME_MAX + 1];
+        s[0] = 0;
+        struct dir *d = dir_open(inode);
+        dir_readdir(d, s);
+        bool allow = !s[0] && dir_get_inode(d)->sector != dir_get_inode(thread_current()->active_dir)->sector;
+        dir_close(d);
+        if (allow) {
+          ret = filesys_remove(res, B);
+        } else {
+          ret = false;
+        }
 
+      }
     }
   }
+  if(res) dir_close(res);
   destruct_split(A, B);
   return ret;
 }
