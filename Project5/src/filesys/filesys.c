@@ -47,6 +47,10 @@ filesys_done (void)
 bool
 filesys_create (const char *name,struct dir *dir, off_t initial_size, bool is_dir)
 {
+  if(strlen(name) == 1 && *name == '.')
+    return false;
+  if(strlen(name) == 2 && *name == '.' && name[1] == '.')
+    return false;
   block_sector_t inode_sector = 0;
   bool success = (dir != NULL
                   && free_map_allocate (&inode_sector)
@@ -71,6 +75,10 @@ filesys_open (struct dir *dir, const char *name, bool *is_dir)
   if (dir != NULL) {
     dir_lookup(dir, name, &inode, is_dir);
   }
+  if(!inode && (strlen(name) == 0 || (strlen(name) == 1 && name[0] == '.') )){
+    *is_dir = true;
+    inode = dir_get_inode(dir);
+  }
 
   return file_open (inode);
 }
@@ -80,11 +88,9 @@ filesys_open (struct dir *dir, const char *name, bool *is_dir)
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 bool
-filesys_remove (const char *name) 
+filesys_remove (struct dir *dir,const char *name)
 {
-  struct dir *dir = dir_open_root ();
   bool success = dir != NULL && dir_remove (dir, name);
-  dir_close (dir); 
 
   return success;
 }
