@@ -199,7 +199,7 @@ int open_sys (const char *path, bool readonly){
 
 
   struct dir *dir = NULL;
-  if(is_dir && f) dir = dir_open(file_get_inode(f));
+  if(is_dir && f) dir = dir_open(inode_reopen(file_get_inode(f)));
   if(f == NULL) ret_FDC = -1;
   else {
     if(readonly) file_deny_write(f);

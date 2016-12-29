@@ -77,7 +77,7 @@ filesys_open (struct dir *dir, const char *name, bool *is_dir)
   }
   if(!inode && (strlen(name) == 0 || (strlen(name) == 1 && name[0] == '.') )){
     *is_dir = true;
-    inode = dir_get_inode(dir);
+    inode = inode_reopen(dir_get_inode(dir));
   }
 
   return file_open (inode);
