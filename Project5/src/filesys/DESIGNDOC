@@ -6,20 +6,21 @@
 
 ---- GROUP ----
 
->> Fill in the names and email addresses of your group members.
-
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Giorgi Guliashvili<gguli13@freeuni.edu.ge>
+Luka Matcharadze <lmach14@freeuni.edu.ge>
+Givi Beridze <gberi14@freeuni.edu.ge>
+Tornike Zhizhiashvili<tzhiz14@freeuni.edu.ge>
 
 ---- PRELIMINARIES ----
 
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
+VM ით მუშაობს
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+Read Write lock java API
 
 		     INDEXED AND EXTENSIBLE FILES
 		     ============================
@@ -29,6 +30,37 @@ FirstName LastName <email@domain.example>
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+#define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE) 8 მეგაბაიტიან დისკზე მაქსიმუმ ამდენი სექტრი გვექნება
+
+დისკზეც ზუსტად იგივე სტრუქტურას ინახავს ყველა ფაილი რასაც იუზერის სრედი ვირტუალურ მემორიზე(ფეიჯდირი).
+struct inode_disk
+{
+    block_sector_t lvl1;               /* First level sector.  */
+    off_t length;                       /* File size in bytes. */
+    unsigned magic;                     /* Magic number. */
+    uint32_t unused[125];               /* Not used. */
+} PACKED;
+
+#define INODE_DISK_LVL_N BLOCK_SECTOR_SIZE / sizeof(uint16_t) რადგან მაქსიმუმ 8 მეგაბაიტიან დისკებზე გვაქვს შეხება 16 ბიტიანი ფოინთერები საკმარისი იქნება. თითო დისკის ბლოკი შეინახავს ამდენ ცალს მისამართს
+
+struct inode_disk_lvl{
+    uint16_t map[INODE_DISK_LVL_N]; // ორივე დონეს ერთნაირი სტრუქტურა აქვს
+}PACKED;
+
+/* In-memory inode. */
+struct inode
+{
+    struct rw_lock rwlock;		/* რიდ ვრაით ლოქი */
+    struct list_elem elem;
+    block_sector_t sector;              /* Sector number of disk location. */
+    int open_cnt;                       /* Number of openers. */
+    bool removed;                       /* True if deleted, false otherwise. */
+    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+};
+
+static struct list open_inodes; // ღია აინოუდების ლისტი(აქამდეც იყო)
+static struct lock l_lock; მხოლოდ ლისტში ჩაგდებისას ერთმანეთს ელოდებიან აინოდები
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
@@ -123,26 +155,4 @@ FirstName LastName <email@domain.example>
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
 
-			   SURVEY QUESTIONS
-			   ================
 
-Answering these questions is optional, but it will help us improve the
-course in future quarters.  Feel free to tell us anything you
-want--these questions are just to spur your thoughts.  You may also
-choose to respond anonymously in the course evaluations at the end of
-the quarter.
-
->> In your opinion, was this assignment, or any one of the three problems
->> in it, too easy or too hard?  Did it take too long or too little time?
-
->> Did you find that working on a particular part of the assignment gave
->> you greater insight into some aspect of OS design?
-
->> Is there some particular fact or hint we should give students in
->> future quarters to help them solve the problems?  Conversely, did you
->> find any of our guidance to be misleading?
-
->> Do you have any suggestions for the TAs to more effectively assist
->> students in future quarters?
-
->> Any other comments?

@@ -11,7 +11,6 @@
 #include "filesys.h"
 #include "../threads/thread.h"
 #include "../threads/gio_synch.h"
-#include "../lib/packed.h"
 #include "free-map.h"
 #include "../lib/string.h"
 
@@ -144,8 +143,7 @@ inode_create (block_sector_t sector, off_t length)
   memset(lvl1, -1, sizeof(struct inode_disk_lvl));
   cached_block_write (fs_device_cached, disk_inode->lvl1, lvl1, 0);
   free(lvl1);
-  int i;
-  for(i = 0; i <= (length + BLOCK_SECTOR_SIZE - 1)/BLOCK_SECTOR_SIZE; i++){
+  for(int i = 0; i <= (length + BLOCK_SECTOR_SIZE - 1)/BLOCK_SECTOR_SIZE; i++){
     lookup(disk_inode, i, true, NULL);
   }
 
