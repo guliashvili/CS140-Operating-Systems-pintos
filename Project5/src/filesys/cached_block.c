@@ -10,6 +10,8 @@ static int evict(struct cached_block *cache);
 
 static struct cached_block *cached_block_g;
 #define QUEUE_N PGSIZE / 16
+#define READ_AHEAD
+
 #ifdef READ_AHEAD
 static uint64_t queue_e = 0;
 static uint64_t queue_s = 0;

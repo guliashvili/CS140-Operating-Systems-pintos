@@ -33,7 +33,7 @@ Read Write lock java API
 
 #define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE) 8 მეგაბაიტიან დისკზე მაქსიმუმ ამდენი სექტრი გვექნება
 
-დისკზეც ზუსტად იგივე სტრუქტურას ინახავს ყველა ფაილი რასაც იუზერის სრედი ვირტუალურ მემორიზე(ფეიჯდირი).
+დისკზეც ზუსტად იგივე სტრუქტურას ინახავს ყველა ფაილი რასაც იუზერის სრედი ვირტუალურ მემორიზე(ფეიჯდირი), ოღონდ ფეიჯდირს 2 ჩადგმული მეპი აქვს, ჩვენ სამი(ყველა მეპი ერთ სექტორში ეტევა)
 struct inode_disk
 {
     block_sector_t lvl1;               /* First level sector.  */
@@ -42,10 +42,10 @@ struct inode_disk
     uint32_t unused[125];               /* Not used. */
 } PACKED;
 
-#define INODE_DISK_LVL_N BLOCK_SECTOR_SIZE / sizeof(uint16_t) რადგან მაქსიმუმ 8 მეგაბაიტიან დისკებზე გვაქვს შეხება 16 ბიტიანი ფოინთერები საკმარისი იქნება. თითო დისკის ბლოკი შეინახავს ამდენ ცალს მისამართს
+#define INODE_DISK_LVL_N BLOCK_SECTOR_SIZE / sizeof(uint16_t) რადგან მაქსიმუმ 8 მეგაბაიტიან დისკებზე გვაქვს შეხება 16 ბიტიანი ფოინთერები საკმარისი იქნება. თითო დისკის ბლოკი(მეპი) შეინახავს ამდენ ცალს მისამართს
 
 struct inode_disk_lvl{
-    uint16_t map[INODE_DISK_LVL_N]; // ორივე დონეს ერთნაირი სტრუქტურა აქვს
+    uint16_t map[INODE_DISK_LVL_N]; // სამივე დონეს ერთნაირი სტრუქტურა აქვს
 }PACKED;
 
 /* In-memory inode. */
@@ -60,15 +60,20 @@ struct inode
 };
 
 static struct list open_inodes; // ღია აინოუდების ლისტი(აქამდეც იყო)
-static struct lock l_lock; მხოლოდ ლისტში ჩაგდებისას ერთმანეთს ელოდებიან აინოდები
+static struct lock l_lock; //მხოლოდ ლისტში ჩაგდებისას ერთმანეთს ელოდებიან აინოდები
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
+
+INODE_DISK_LVL_N = BLOCK_SECTOR_SIZE / sizeof(uint16_t) = 512 / 16 = 32
+INODE_DISK_LVL_N ^ 3 = 32768
 
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+
+ყველა აინოუდს აქვს თავისი რიდ ვრაით ლოქი, თუ არ აექსთენდებს სრედი მაშინ მხოლოდ რიდ ლოქი აქვს აღებული, თუ აექსთენდებს რიდ ლოქი აქვს ან/და რიდ ლოქს ააფგრეიდებს ვრაით ლოქზე.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -77,12 +82,15 @@ static struct lock l_lock; მხოლოდ ლისტში ჩაგდე
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+A საც და B საც აღებული აქვთ რიდ ლოქი, B შეეცდება თავისი რიდ ლოქის ვრაით ლოქში გადაცვლას მაგრამ მოუწევს დაელოდოს სანამ ყველა რიდ ლოქი დარილიზდება. A წაიკითხავს არაფერს და დაარილიზებს თავის ლოქს, B აიღებს ვრაით ლოქს დააექსთენდებს და გაუშვებს.
+
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
 >> or vice versa.  That is, many processes reading from a file cannot
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+თუ ექსთენდი არ ხდება, წაკითხვა და ჩაწერა ხდება კონკურეტულად. ჩამწერი ატომურ ოპერაციებად წერს ინთებს. თუ ექსთენდი ხდება, ჩამწერი(ექსთენდი მხოლოდ ჩაწერისას ხდება) თავისი რიდ ლოქის დააფგრეიდებისას ბლოკავს ყველა სხვა რიდ ბლოქის მთხოვნელს და ელოდება ყველა რიდ ლოქიანს სანამ რილიზს გააკეთებენ. შემდეგ აექსთენდებს, (რიდერები და ვრაითერები ელოდებიან). მომლოდინეები იმ თანმიმდევრობით გამოიღვიძებენ როგორც დაიწყეს ლოდინი.
 
 ---- RATIONALE ----
 
@@ -91,6 +99,8 @@ static struct lock l_lock; მხოლოდ ლისტში ჩაგდე
 >> indirect blocks?  If not, why did you choose an alternative inode
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
+3 მაგად ჩადგმული მეპები მაქვს. თითოეული მეპი ეტევა ერთ სექტორში. კარგი იმითაა რომ ვზოგავ დამატებით სტრუქტურას რასაც გამოვყობ. შემეძლო მეპები დამეგრძელებინა(1 სექტორზე მეტი მოეცვათ), ეს კარგი იქნებოდა იმიტომ, რომ ეს სექტორები ერთმანეთის მეზობლად იქნებოდა და რიდ ეჰედს აზრი ექნებოდა(ახლა რაკი ყველა სექტორი გაფანტულია რიდ ეჰედი ვერაფერს ვერ შვება).თუმცა მეტ სექტორებს დავხაჯავთ პატარა ფაილებისთვის.
+
 
 			    SUBDIRECTORIES
 			    ==============
