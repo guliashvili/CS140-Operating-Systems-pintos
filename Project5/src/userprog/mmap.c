@@ -3,16 +3,12 @@
 #include "threads/synch.h"
 
 static bool equals_mmap_id(const struct list_elem *elem, void *id);
-static bool equals_fd_id(const struct list_elem *elem, void *id);
 static struct mmap_info *find_open_mmap(int id);
 
 static int mmap_id = 1;
 
 static bool equals_mmap_id(const struct list_elem *elem, void *id){
   return list_entry (elem, struct mmap_info, link)->id == *(int*)id;
-}
-static bool equals_fd_id(const struct list_elem *elem, void *id){
-  return list_entry (elem, struct mmap_info, link)->fd == *(int*)id;
 }
 static struct mmap_info *find_open_mmap(int mmap_id){
   struct list_elem *e =  list_find(&thread_current()->mmap_address, equals_mmap_id, (void*)&mmap_id);

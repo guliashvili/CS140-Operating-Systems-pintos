@@ -52,12 +52,13 @@ filesys_create (const char *name,struct dir *dir, off_t initial_size, bool is_di
   if(strlen(name) == 2 && *name == '.' && name[1] == '.')
     return false;
   block_sector_t inode_sector = 0;
-  bool success = (dir != NULL
-                  && free_map_allocate (&inode_sector)
-                  && inode_create (inode_sector, initial_size)
-                  && dir_add (dir, name, inode_sector, is_dir));
-  if (!success && inode_sector != 0) 
-    free_map_release (inode_sector);
+  bool success = dir != NULL;
+  success = success && free_map_allocate (&inode_sector);
+  success = success && inode_create (inode_sector, initial_size);
+  success = success &&  dir_add (dir, name, inode_sector, is_dir);
+  if (!success && inode_sector != 0) {
+    free_map_release(inode_sector);
+  }
 
   return success;
 }

@@ -13,6 +13,7 @@
 #include "../threads/gio_synch.h"
 #include "free-map.h"
 #include "../lib/string.h"
+#include "inode.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -30,33 +31,41 @@ bytes_to_sectors (off_t size)
 static char zeros[BLOCK_SECTOR_SIZE] = {0};
 
 static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, uint16_t *res){
-  int a = upage >> 7;
-  int b = upage & ((1<<8)-1);
+  int c = upage & ((1<<5)-1);
+  int b = (upage >> 5) & ((1<<5)-1);
+  int a = (upage >> 10);
+  ASSERT(a < 32);
+  ASSERT(b < 32);
+  ASSERT(c < 32);
 
   struct inode_disk_lvl *lvl2 = malloc(sizeof(struct inode_disk_lvl));
   if(!lvl2) {
-    *res = -1;
+    if(res) *res = -1;
     return false;
   }
   struct inode_disk_lvl *lvl1 = malloc(sizeof(struct inode_disk_lvl));
   if(!lvl1){
-    *res = -1;
+    if(res) *res = -1;
     free(lvl2);
     return false;
   }
-  block_sector_t pointer1 = -1, pointer2 = -1;
+
+  struct inode_disk_lvl *lvl3 = malloc(sizeof(struct inode_disk_lvl));
+  if(!lvl3){
+    if(res) *res = -1;
+    free(lvl2);
+    free(lvl1);
+    return false;
+  }
+
+  block_sector_t pointer1 = -1, pointer2 = -1, pointer3 = -1;
   cached_block_read(fs_device_cached, inode_disk->lvl1, lvl1, 0);
 
   if(lvl1->map[a] == (uint16_t)-1){
-    if(!create){
-      *res = -1;
-      free(lvl1);free(lvl2);
+    if(!create || !free_map_allocate (&pointer1)){
+      if(res) *res = -1;
+      free(lvl1);free(lvl2);free(lvl3);
       return 0;
-    }
-    if(!free_map_allocate (&pointer1)){
-      *res = -1;
-      free(lvl1);free(lvl2);
-      return false;
     }
     lvl1->map[a] = pointer1;
 
@@ -64,35 +73,52 @@ static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, u
   }else{
     cached_block_read(fs_device_cached, lvl1->map[a], lvl2, 0);
   }
+
+
   if(lvl2->map[b] == (uint16_t)-1){
-    if(!create){
-      *res = -1;
-      free(lvl1);free(lvl2);
+    if(!create || !free_map_allocate (&pointer2)){
+      if(res) *res = -1;
+      if(pointer1 != -1) free_map_release(pointer1);
+      free(lvl1);free(lvl2);free(lvl3);
       return 0;
     }
-    if(!free_map_allocate (&pointer2)){
-      free(lvl1);free(lvl2);
-      if(pointer1 != -1) free_map_release(pointer2);
-      *res = -1;
-      return false;
-    }
+
     lvl2->map[b] = pointer2;
+
+    memset(lvl3, -1, sizeof(struct inode_disk_lvl));
+  }else{
+    cached_block_read(fs_device_cached, lvl2->map[b], lvl3, 0);
   }
-  if(lvl2->map[b] == (uint16_t)-1) ASSERT(0);
+
+  if(lvl3->map[c] == (uint16_t)-1) {
+    if (!create || !free_map_allocate(&pointer3)) {
+      if(res) *res = -1;
+      free(lvl1);free(lvl2);free(lvl3);
+      if(pointer1 != -1) free_map_release(pointer1);
+      if(pointer2 != -1) free_map_release(pointer2);
+      return 0;
+    }
+    lvl3->map[c] = pointer3;
+  }
+
+  if(pointer3 != -1){
+    cached_block_write(fs_device_cached, lvl3->map[c], zeros, 0);
+    cached_block_write(fs_device_cached, lvl2->map[b], lvl3, 0);
+  }
 
   if(pointer2 != -1){
-    cached_block_write(fs_device_cached, lvl2->map[b], zeros, 0);
     cached_block_write(fs_device_cached, lvl1->map[a], lvl2, 0);
   }
+
   if(pointer1 != -1){
     cached_block_write (fs_device_cached, inode_disk->lvl1, lvl1, 0);
   }
 
-  if(res) *res = lvl2->map[b];
+  if(res) *res = lvl3->map[c];
 
-  free(lvl1);free(lvl2);
+  free(lvl1);free(lvl2);free(lvl3);
 
-  return pointer1 != -1 || pointer2 != -1;
+  return pointer1 != -1 || pointer2 != -1 || pointer3 != -1;
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -218,7 +244,6 @@ inode_get_inumber (const struct inode *inode)
    If INODE was also a removed inode, frees its blocks. */
 void
 inode_close (struct inode *inode) {
-
   /* Ignore null pointer. */
   if (inode == NULL)
     return;
@@ -238,17 +263,23 @@ inode_close (struct inode *inode) {
 
       struct inode_disk_lvl *lvl1 = malloc(sizeof(struct inode_disk_lvl));
       struct inode_disk_lvl *lvl2 = malloc(sizeof(struct inode_disk_lvl));
+      struct inode_disk_lvl *lvl3 = malloc(sizeof(struct inode_disk_lvl));
       ASSERT(lvl1);
       ASSERT(lvl2);
+      ASSERT(lvl3);
 
       cached_block_read(fs_device_cached, meta_data->lvl1, lvl1, 0);
-      int i;
-      for(i = 0; i < INODE_DISK_LVL_N; i++){
+      for(int i = 0; i < INODE_DISK_LVL_N; i++){
         if(lvl1->map[i] == (uint16_t)-1) continue;
         cached_block_read(fs_device_cached, lvl1->map[i], lvl2, 0);
-        int j;
-        for(j = 0; j < INODE_DISK_LVL_N; j++){
+        for(int j = 0; j < INODE_DISK_LVL_N; j++){
           if(lvl2->map[j] == (uint16_t)-1) continue;
+          cached_block_read(fs_device_cached, lvl2->map[j], lvl3, 0);
+          for(int k = 0; k < INODE_DISK_LVL_N; k++){
+            if(lvl3->map[k] == (uint16_t)-1) continue;
+
+            free_map_release(lvl3->map[k]);
+          }
 
           free_map_release(lvl2->map[j]);
         }
@@ -260,6 +291,7 @@ inode_close (struct inode *inode) {
       free(meta_data);
       free(lvl1);
       free(lvl2);
+      free(lvl3);
 
     }
 
@@ -356,17 +388,19 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     upgraded = true;
 
     int i;
-    for (i = (offset + size + BLOCK_SECTOR_SIZE - 1) / BLOCK_SECTOR_SIZE; i >= 0; i--)
-      if(!lookup(meta_data, i, true, NULL)) break;
+    for (i = (offset + size + BLOCK_SECTOR_SIZE - 1) / BLOCK_SECTOR_SIZE; i >= 0; i--) {
+      if (!lookup(meta_data, i, true, NULL)) {
+        break;
+      }
+    }
   }
   meta_data->length = MAX(meta_data->length, offset + size);
 
   while (size > 0)
   {
     /* Sector to write, starting byte offset within sector. */
-
     lookup (meta_data, offset / BLOCK_SECTOR_SIZE, false, &sector_idx);
-    if(sector_idx == -1) break;
+    if(sector_idx == (uint16_t)-1) break;
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -384,7 +418,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     ASSERT(sector_idx != 0);
     cached_block_write_segment(fs_device_cached, sector_idx, sector_ofs, sector_ofs + chunk_size,
                                buffer + bytes_written, NULL, 0);
-
     /* Advance. */
     size -= chunk_size;
     offset += chunk_size;
@@ -392,8 +425,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   }
   cached_block_write(fs_device_cached, inode->sector, meta_data, 0);
 
-  if(upgraded) w_lock_release(&inode->rwlock);
-  else r_lock_release(&inode->rwlock);
+  if(upgraded) {
+    w_lock_release(&inode->rwlock);
+  } else {
+    r_lock_release(&inode->rwlock);
+  }
   free(meta_data);
   return bytes_written;
 }

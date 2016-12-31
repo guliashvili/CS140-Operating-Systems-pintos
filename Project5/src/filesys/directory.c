@@ -16,7 +16,6 @@ struct rw_lock dir_locks_list[SECTOR_NUM / REDUCEE];
 static struct rw_lock *get_lock(int sector);
 static struct rw_lock *get_lock(int sector){
   ASSERT(sector / REDUCEE < SECTOR_NUM / REDUCEE);
-  //if(sector / REDUCEE < 0) PANIC("%d %d", sector, sector /REDUCEE);
   return dir_locks_list + sector / REDUCEE;
 }
 
@@ -164,7 +163,6 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   struct dir_entry e;
   off_t ofs;
   bool success = false;
-
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
@@ -203,13 +201,14 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   if(success && is_dir){
     struct inode *inode = inode_open(e.inode_sector);
     ASSERT(inode);
-    inode_write_at(inode, &dir->inode->sector, sizeof(dir->inode->sector), 0);
+    if(inode_write_at(inode, &dir->inode->sector, sizeof(dir->inode->sector), 0) != sizeof(dir->inode->sector)){
+      success = false;
+    }
     inode_close(inode);
   }
 
  done:
   w_lock_release(get_lock(dir->inode->sector));
-
   return success;
 }
 
@@ -236,11 +235,11 @@ dir_remove (struct dir *dir, const char *name)
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
     goto done;
-
   /* Erase directory entry. */
   e.in_use = false;
-  if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e) 
+  if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e) {
     goto done;
+  }
 
   /* Remove inode. */
   inode_remove (inode);

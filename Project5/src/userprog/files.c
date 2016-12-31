@@ -235,10 +235,11 @@ bool remove_sys (const char * path) {
 
   struct dir * res = merge_dir(thread_current()->active_dir, A);
 
-  if(!res) ret = false;
-  else{
+  if(!res) {
+    ret = false;
+  } else{
     bool is_dir;
-    struct inode *inode;
+    struct inode *inode = NULL;
     dir_lookup(res, B, &inode, &is_dir);
     if(!inode) {
       ret = false;
