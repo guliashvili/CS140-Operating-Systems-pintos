@@ -10,7 +10,7 @@
 #include "../threads/malloc.h"
 #include "../tests/filesys/base/syn-read.h"
 
-#define REDUCEE 1024
+#define REDUCEE 1
 
 struct rw_lock dir_locks_list[SECTOR_NUM / REDUCEE];
 static struct rw_lock *get_lock(int sector);

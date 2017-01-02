@@ -31,7 +31,7 @@ Read Write lock java API
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-#define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE) 8 მეგაბაიტიან დისკზე მაქსიმუმ ამდენი სექტრი გვექნება
+#define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE) 8 მეგაბაიტიან დისკზე მაქსიმუმ ამდენი სექტორი გვექნება
 
 დისკზეც ზუსტად იგივე სტრუქტურას ინახავს ყველა ფაილი რასაც იუზერის სრედი ვირტუალურ მემორიზე(ფეიჯდირი), ოღონდ ფეიჯდირს 2 ჩადგმული მეპი აქვს, ჩვენ სამი(ყველა მეპი ერთ სექტორში ეტევა)
 struct inode_disk
@@ -45,7 +45,7 @@ struct inode_disk
 #define INODE_DISK_LVL_N BLOCK_SECTOR_SIZE / sizeof(uint16_t) რადგან მაქსიმუმ 8 მეგაბაიტიან დისკებზე გვაქვს შეხება 16 ბიტიანი ფოინთერები საკმარისი იქნება. თითო დისკის ბლოკი(მეპი) შეინახავს ამდენ ცალს მისამართს
 
 struct inode_disk_lvl{
-    uint16_t map[INODE_DISK_LVL_N]; // სამივე დონეს ერთნაირი სტრუქტურა აქვს
+    uint16_t map[INODE_DISK_LVL_N]; // სამივე დონეს ერთნაირი სტრუქტურა აქვს, მიუთითებს შემდეგი დონის(ან ფაილის) სექტორს
 }PACKED;
 
 /* In-memory inode. */
@@ -73,7 +73,7 @@ INODE_DISK_LVL_N ^ 3 = 32768
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
 
-ყველა აინოუდს აქვს თავისი რიდ ვრაით ლოქი, თუ არ აექსთენდებს სრედი მაშინ მხოლოდ რიდ ლოქი აქვს აღებული, თუ აექსთენდებს რიდ ლოქი აქვს ან/და რიდ ლოქს ააფგრეიდებს ვრაით ლოქზე.
+ყველა აინოუდს აქვს თავისი რიდ ვრაით ლოქი, თუ არ აექსთენდებს სრედი მაშინ მხოლოდ რიდ ლოქი აქვს აღებული, თუ აექსთენდებს ვრაით ლოქი აქვს ან/და რიდ ლოქს ააფგრეიდებს ვრაით ლოქზე.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -90,7 +90,9 @@ A საც და B საც აღებული აქვთ რიდ ლ�
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
-თუ ექსთენდი არ ხდება, წაკითხვა და ჩაწერა ხდება კონკურეტულად. ჩამწერი ატომურ ოპერაციებად წერს ინთებს. თუ ექსთენდი ხდება, ჩამწერი(ექსთენდი მხოლოდ ჩაწერისას ხდება) თავისი რიდ ლოქის დააფგრეიდებისას ბლოკავს ყველა სხვა რიდ ბლოქის მთხოვნელს და ელოდება ყველა რიდ ლოქიანს სანამ რილიზს გააკეთებენ. შემდეგ აექსთენდებს, (რიდერები და ვრაითერები ელოდებიან). მომლოდინეები იმ თანმიმდევრობით გამოიღვიძებენ როგორც დაიწყეს ლოდინი.
+თუ ექსთენდი არ ხდება, წაკითხვა და ჩაწერა ხდება კონკურენტულად. ჩამწერი ატომურ ოპერაციებად წერს ინთებს(თუ ქეშშია). თუ ექსთენდი ხდება, ჩამწერი(ექსთენდი მხოლოდ ჩაწერისას ხდება) თავისი რიდ ლოქის დააფგრეიდებისას ბლოკავს ყველა სხვა რიდ ლოქის მთხოვნელს და ელოდება ყველა რიდ ლოქიანს სანამ რილიზს გააკეთებენ. შემდეგ აექსთენდებს, (რიდერები და ვრაითერები ელოდებიან). მომლოდინეები იმ თანმიმდევრობით გამოიღვიძებენ როგორც დაიწყეს ლოდინი.
+!!!
+რიდ ლოქს წაკითხვისას და ვრაითს ჩაწერისას არ ვიყენებ, ჩაწერაც და წაკითხვაც ექსთენდის გარეშე ხდება რიდ ლოქით.
 
 ---- RATIONALE ----
 
@@ -111,10 +113,37 @@ A საც და B საც აღებული აქვთ რიდ ლ�
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+#define REDUCEE 1
+struct rw_lock dir_locks_list[SECTOR_NUM / REDUCEE]; ლოქები ფოლდერებისთვის
+
+/* A directory. */
+struct dir 
+  {
+    struct inode *inode;                /* Backing store. */
+    off_t pos;                          /* Current position. */
+  };
+უცვლელია
+
+/* A single directory entry. */
+struct dir_entry 
+  {
+    block_sector_t inode_sector;        /* Sector number of header. */
+    char name[NAME_MAX + 1];            /* Null terminated file name. */
+    bool in_use;                        /* In use or free? */
+    bool is_dir;	// მხოლოდ მშობელმა ფოლდერმა იცის ფაილზე მიუთითებს თუ ფოლდერზე
+  };
+
+ასევე ყველა ფოლდერს პირველ 4 ბაიტში უწერია მშობელი ფოლდერის მისამართი(გარდა რუთისა)
+
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+
+მაქვს საწყისი ფოლდერის ცნება, თუკი აბოსილუტი გზაა მოცემული, მაშინ საწყისი ფოლდერი რუთია, თუ არადა იუზერის აქტიური დირექტორია.
+ბოლო სახელს გამოვყობ მოცემული გზიდან რაღაცა/რაღაცე//რაღაცაც///სახელი//.
+დარჩენილი რაღაცა/რაღაცე//რაღაცაც// ვცვლი საწყის ფოლდერს.
+ანუ ამ შეცვლის შემდეგ საწყისი ფოლდერი იქნება რაღაცაც ფოლდერი. ამის შემდეგ არის ორი ვარიანტი ან [სახელი არის . ან ..] ან ნამდვილი სახელი. თუ ნამდვილი სახელია ვხსნი მას, თუარადა ვიქცევი შესაბამისად.(ვხსნი იგივე ფოლდერს ან მის წინას) 
 
 ---- SYNCHRONIZATION ----
 
@@ -123,10 +152,14 @@ A საც და B საც აღებული აქვთ რიდ ლ�
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+ფოლდერში ჩამატება, წაშლისას ვიღებ ვრაით ლოქს, ანუ ერთდროულად ორი ან თითო თითო ჩამატება წაშლა ვერ მოხდება 1 ფოლდერში. უკვე არსებული ფაილის სახელით მეორეს შექმნაზე ფოლდერი არ ჩაიმათებს და დააბრუნებს ერორს.
+
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
+
+გახსნილი ფოლდერის წაშლა არ შეიძლება.
 
 ---- RATIONALE ----
 
