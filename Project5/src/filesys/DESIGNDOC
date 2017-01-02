@@ -159,12 +159,14 @@ struct dir_entry
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 
-გახსნილი ფოლდერის წაშლა არ შეიძლება.
+გახსნილი ფოლდერის წაშლა არ შეიძლება. ფოლდერის წაშლისას ვამოწმებ რომ მისი მთავარი აინოდი არავის არ აქვს გახსნილი.
 
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
+
+ბევრი ქეისი არ აქვს. თუ აბსოლუტური გზაა მითითებული ვხსნი რუთს თუ არადა რიოფენს ვუკეთებ აქტიურ ფოლდერს. შემდეგ ზუსტად ერთიდაიგივეს ვაკეთებ ორივე შემთხვევაში. strbrk თი მარტივდ გამოვყობ ფოლდერის სახელებს და ჩავდივარ(ავდივარ) სასურველ ფოლდერამდე.
 
 			     BUFFER CACHE
 			     ============

@@ -8,8 +8,7 @@
 
 static int evict(struct cached_block *cache);
 
-static struct cached_block *cached_block_g;
-#define QUEUE_N PGSIZE / 16
+#define QUEUE_N 20
 #define READ_AHEAD
 
 #ifdef READ_AHEAD
@@ -19,11 +18,7 @@ static uint16_t queue[QUEUE_N];
 #endif
 
 #define CACHED_BLOCK_SLEEP_S 10
-#define READ_AHEAD
-#undef READ_AHEAD
-static void read_ahead(int sector){
-  struct cached_block *cache = cached_block_g;
-
+static void read_ahead(struct cached_block *cache, int sector){
   struct rw_lock *l = cache->locks + sector;
   bool upgraded = false;
   r_lock_acquire(l);
@@ -65,8 +60,8 @@ static void fflusher (void *cached_block)
 #ifdef READ_AHEAD
       if(queue_s < __sync_fetch(&queue_e)){
         int get = __sync_fetch(&queue[queue_s++]);
-        if(get >= 0 && get < cached_block_size(cached_block_g))
-          read_ahead(get % QUEUE_N), queue_s++;
+        if(get >= 0 && get < cached_block_size((struct cached_block *)cached_block))
+          read_ahead((struct cached_block *)cached_block, get % QUEUE_N), queue_s++;
       }
 #endif
     }
@@ -93,7 +88,7 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   memset(cache->addr, -1, sizeof(int8_t) * SECTOR_NUM);
 
   thread_create("fflusher", 0, fflusher, cache);
-  return cached_block_g = cache;
+  return cache;
 }
 
 static void fflush_single(struct cached_block *cache, int in_ram_index) {

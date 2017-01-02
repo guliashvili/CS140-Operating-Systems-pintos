@@ -227,13 +227,14 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (name != NULL);
 
   w_lock_acquire(get_lock(dir->inode->sector));
+
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
 
   /* Open inode. */
   inode = inode_open (e.inode_sector);
-  if (inode == NULL)
+  if (inode == NULL || (e.is_dir && inode->open_cnt > 1))
     goto done;
   /* Erase directory entry. */
   e.in_use = false;
