@@ -7,15 +7,8 @@
 #include "../threads/vaddr.h"
 
 static int evict(struct cached_block *cache);
-
-#define QUEUE_N 20
-#define READ_AHEAD
-
-#ifdef READ_AHEAD
-static uint64_t queue_e = 0;
-static uint64_t queue_s = 0;
-static uint16_t queue[QUEUE_N];
-#endif
+static void read_ahead(struct cached_block *cache, int sector);
+static void fflusher (void *cached_block);
 
 #define CACHED_BLOCK_SLEEP_S 10
 static void read_ahead(struct cached_block *cache, int sector){
@@ -54,14 +47,15 @@ static void read_ahead(struct cached_block *cache, int sector){
 
 static void fflusher (void *cached_block)
 {
+  struct cached_block *block = (struct cached_block *)cached_block;
   while(1){
     for(int i = 0; i < CACHED_BLOCK_SLEEP_S; i++) {
       timer_msleep(1000);
 #ifdef READ_AHEAD
-      if(queue_s < __sync_fetch(&queue_e)){
-        int get = __sync_fetch(&queue[queue_s++]);
-        if(get >= 0 && get < cached_block_size((struct cached_block *)cached_block))
-          read_ahead((struct cached_block *)cached_block, get % QUEUE_N), queue_s++;
+      if(block->queue_s < __sync_fetch(&block->queue_e)){
+        int get = __sync_fetch(&block->queue[block->queue_s++]);
+        if(get >= 0 && get < cached_block_size(block))
+          read_ahead((struct cached_block *)cached_block, get % QUEUE_N), block->queue_s++;
       }
 #endif
     }
@@ -86,6 +80,11 @@ struct cached_block *cached_block_init(struct block *block, int buffer_elem){
   ASSERT(cache->entries);
   for(int i = 0; i < SECTOR_NUM; i++) rw_lock_init(cache->locks + i);
   memset(cache->addr, -1, sizeof(int8_t) * SECTOR_NUM);
+  cache->evict_I = 0;
+
+#ifdef READ_AHEAD
+  cache->queue_e = cache->queue_s = 0;
+#endif
 
   thread_create("fflusher", 0, fflusher, cache);
   return cache;
@@ -110,11 +109,10 @@ void fflush_all(struct cached_block *cache){
   }
 }
 
-int evict_I = 0;
 static int evict(struct cached_block *cache){
   for(int try_hard = 0; try_hard < 2; try_hard++)
   for(int i = 0; i < cache->buffer_len; i++){
-    int rnd = __sync_fetch_and_add(&evict_I, 1) % cache->buffer_len;
+    int rnd = __sync_fetch_and_add(&cache->evict_I, 1) % cache->buffer_len;
     if(rnd < 0) rnd += cache->buffer_len;
     if(lock_try_acquire(&cache->entries[rnd].lock)){
       int holder;
@@ -202,7 +200,7 @@ void cached_block_read_segment(struct cached_block *cache, block_sector_t sector
 
 #ifdef READ_AHEAD
   if(sector + 1 < cached_block_size(cache))
-    __sync_lock_test_and_set(queue + __sync_fetch_and_add(&queue_e,1) % QUEUE_N, sector + 1);
+    __sync_lock_test_and_set(cache->queue + __sync_fetch_and_add(&cache->queue_e,1) % QUEUE_N, sector + 1);
 #endif
 }
 

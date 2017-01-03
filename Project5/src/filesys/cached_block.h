@@ -6,6 +6,8 @@
 #include "../lib/packed.h"
 
 #define SECTOR_NUM (8 * 1024 * 1024 / BLOCK_SECTOR_SIZE)
+#define QUEUE_N 20
+#define READ_AHEAD
 
 struct cache_entry{
     char data[BLOCK_SECTOR_SIZE];
@@ -13,7 +15,7 @@ struct cache_entry{
     int holder;
     uint16_t dirty;
     uint16_t accessed;
-}PACKED;
+};
 
 struct cached_block{
     struct block *block;
@@ -21,7 +23,13 @@ struct cached_block{
     struct cache_entry *entries;
     int8_t *addr;
     struct rw_lock *locks;
-}PACKED;
+#ifdef READ_AHEAD
+    uint64_t queue_e;
+    uint64_t queue_s;
+    uint16_t queue[QUEUE_N];
+#endif
+    int evict_I;
+};
 
 void fflush_all(struct cached_block *cache);
 struct cached_block *cached_block_init(struct block *block, int buffer_elem);
