@@ -22,7 +22,7 @@ static struct user_file_info *find_open_file(int fd){
 }
 
 static bool equals_sector(const struct list_elem *elem, void *sector){
-  return file_get_inode(list_entry (elem, struct user_file_info, link)->f)->sector == *(int*)sector;
+  return file_get_inode(list_entry (elem, struct user_file_info, link)->f)->sector == *(block_sector_t *)sector;
 }
 
 static struct user_file_info *find_open_file_with_sector(int sector){
@@ -207,7 +207,7 @@ int open_sys (const char *path, bool readonly){
   }
   return ret_FDC;
 }
-static bool create(const char *prefix, const char *path, unsigned initial_size, bool is_dir){
+static bool create(const char *prefix UNUSED, const char *path, unsigned initial_size, bool is_dir){
   bool ret;
 
   char *A, *B;

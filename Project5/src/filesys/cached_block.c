@@ -5,6 +5,7 @@
 #include "../lib/random.h"
 #include "../devices/timer.h"
 #include "../threads/vaddr.h"
+#include "../lib/debug.h"
 
 static int evict(struct cached_block *cache);
 static void read_ahead(struct cached_block *cache, int sector);
@@ -54,7 +55,7 @@ static void fflusher (void *cached_block)
 #ifdef READ_AHEAD
       if(block->queue_s < __sync_fetch(&block->queue_e)){
         int get = __sync_fetch(&block->queue[block->queue_s++]);
-        if(get >= 0 && get < cached_block_size(block))
+        if(get >= 0 && get < (int)cached_block_size(block))
           read_ahead((struct cached_block *)cached_block, get % QUEUE_N), block->queue_s++;
       }
 #endif
@@ -145,13 +146,12 @@ static int evict(struct cached_block *cache){
 void cached_block_read(struct cached_block *cache, block_sector_t sector, void *buffer, int info){
   ASSERT(buffer);
   ASSERT(cache);
-  ASSERT(sector >= 0);
   ASSERT(sector < 8 * 1024 * 1024 / BLOCK_SECTOR_SIZE);
 
   cached_block_read_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, info);
 }
 
-void cached_block_read_segment(struct cached_block *cache, block_sector_t sector, int s, int e, void *buffer, int info){
+void cached_block_read_segment(struct cached_block *cache, block_sector_t sector, int s, int e, void *buffer, int info UNUSED){
   ASSERT(buffer);
   ASSERT(cache);
   ASSERT(s < e);
@@ -208,7 +208,6 @@ void cached_block_write(struct cached_block *cache, block_sector_t sector,const 
   ASSERT(cache);
   ASSERT(buffer);
 
-  ASSERT(sector >= 0);
   ASSERT(sector < 8 * 1024 * 1024 / BLOCK_SECTOR_SIZE);
 
   cached_block_write_segment(cache, sector, 0, BLOCK_SECTOR_SIZE, buffer, NULL, info);
@@ -222,7 +221,7 @@ struct inode_disk
 } PACKED;
 
 void cached_block_write_segment(struct cached_block *cache, block_sector_t sector, int s, int e,
-                                const void *buffer,const void *full_buffer, int info){
+                                const void *buffer,const void *full_buffer, int info UNUSED){
   ASSERT(cache);
   ASSERT(buffer);
   if(s == 0 && e == BLOCK_SECTOR_SIZE) full_buffer = buffer;

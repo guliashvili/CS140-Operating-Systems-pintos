@@ -129,7 +129,6 @@ static void frame_second_chance_algorithm(void){
   ASSERT(f->user);
   ASSERT(f->user->pagedir);
   ASSERT(f->user->upage);
-  ASSERT(f->user->sector_t == -1);
 
   struct supp_pagedir_entry *user = f->user;
 

@@ -38,7 +38,6 @@ void supp_pagedir_set_readfile(void *vaddr, int fd, int s, int e, int flags){
   struct supp_pagedir_entry ** ee = supp_pagedir_lookup(thread_current()->supp_pagedir, vaddr, false);
   ASSERT(ee);
   struct supp_pagedir_entry *el=*ee;
-  ASSERT(el->sector_t == -1);
   ASSERT(el);
   el->flags |= PAL_ZERO | flags;
   ASSERT(ee);

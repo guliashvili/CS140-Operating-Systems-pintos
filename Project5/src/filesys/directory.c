@@ -41,7 +41,7 @@ struct dir_entry
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
 bool
-dir_create (block_sector_t sector, size_t entry_cnt) {
+dir_create (block_sector_t sector, size_t entry_cnt UNUSED) {
   return inode_create(sector, 0);
 }
 
@@ -115,7 +115,7 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  for (ofs = sizeof(block_sector_t); ofs < inode_length(dir->inode);
+  for (ofs = sizeof(block_sector_t); (int)ofs < inode_length(dir->inode);
        ofs += sizeof e) {
     if(inode_read_at (dir->inode, &e, sizeof e, ofs) != sizeof e) break;
     if (e.in_use && !strcmp(name, e.name)) {

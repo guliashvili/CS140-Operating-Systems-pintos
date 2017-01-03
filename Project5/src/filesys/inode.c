@@ -78,7 +78,7 @@ static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, u
   if(lvl2->map[b] == (uint16_t)-1){
     if(!create || !free_map_allocate (&pointer2)){
       if(res) *res = -1;
-      if(pointer1 != -1) free_map_release(pointer1);
+      if(pointer1 != (__typeof__(pointer1))-1) free_map_release(pointer1);
       free(lvl1);free(lvl2);free(lvl3);
       return 0;
     }
@@ -94,23 +94,23 @@ static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, u
     if (!create || !free_map_allocate(&pointer3)) {
       if(res) *res = -1;
       free(lvl1);free(lvl2);free(lvl3);
-      if(pointer1 != -1) free_map_release(pointer1);
-      if(pointer2 != -1) free_map_release(pointer2);
+      if(pointer1 != (__typeof__(pointer1)) -1 ) free_map_release(pointer1);
+      if(pointer2 != (__typeof__(pointer2)) -1) free_map_release(pointer2);
       return 0;
     }
     lvl3->map[c] = pointer3;
   }
 
-  if(pointer3 != -1){
+  if(pointer3 != (__typeof__(pointer3)) -1){
     cached_block_write(fs_device_cached, lvl3->map[c], zeros, 0);
     cached_block_write(fs_device_cached, lvl2->map[b], lvl3, 0);
   }
 
-  if(pointer2 != -1){
+  if(pointer2 != (__typeof__(pointer2)) -1){
     cached_block_write(fs_device_cached, lvl1->map[a], lvl2, 0);
   }
 
-  if(pointer1 != -1){
+  if(pointer1 != (__typeof__(pointer1)) -1){
     cached_block_write (fs_device_cached, inode_disk->lvl1, lvl1, 0);
   }
 
@@ -118,7 +118,7 @@ static bool lookup(struct inode_disk *inode_disk, uint16_t upage, bool create, u
 
   free(lvl1);free(lvl2);free(lvl3);
 
-  return pointer1 != -1 || pointer2 != -1 || pointer3 != -1;
+  return pointer1 != (__typeof__(pointer1))-1 || pointer2 != (__typeof__(pointer2))-1 || pointer3 != (__typeof__(pointer3))-1;
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -269,13 +269,13 @@ inode_close (struct inode *inode) {
       ASSERT(lvl3);
 
       cached_block_read(fs_device_cached, meta_data->lvl1, lvl1, 0);
-      for(int i = 0; i < INODE_DISK_LVL_N; i++){
+      for(unsigned i = 0; i < INODE_DISK_LVL_N; i++){
         if(lvl1->map[i] == (uint16_t)-1) continue;
         cached_block_read(fs_device_cached, lvl1->map[i], lvl2, 0);
-        for(int j = 0; j < INODE_DISK_LVL_N; j++){
+        for(unsigned j = 0; j < INODE_DISK_LVL_N; j++){
           if(lvl2->map[j] == (uint16_t)-1) continue;
           cached_block_read(fs_device_cached, lvl2->map[j], lvl3, 0);
-          for(int k = 0; k < INODE_DISK_LVL_N; k++){
+          for(unsigned k = 0; k < INODE_DISK_LVL_N; k++){
             if(lvl3->map[k] == (uint16_t)-1) continue;
 
             free_map_release(lvl3->map[k]);
