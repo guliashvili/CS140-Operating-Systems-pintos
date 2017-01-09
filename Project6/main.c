@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
+#include <pthread.h>
+#include <omp.h>
 
 void check_gcc_version(void);
 
@@ -15,8 +17,15 @@ void check_gcc_version(void){
 }
 
 
+void *hello(void *aux  __attribute__ ((unused))){
+#pragma omp parallel for
+  for(int i = 0; i < 10; i++)
+    printf("Hello, World! %d\n", omp_get_thread_num());
+}
 int main() {
   check_gcc_version();
-  printf("Hello, World!\n");
+  pthread_t t;
+  pthread_create(&t, NULL, hello, NULL);
+  pthread_join(t, NULL);
   return 0;
 }
