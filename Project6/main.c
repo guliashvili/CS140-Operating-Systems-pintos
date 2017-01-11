@@ -10,6 +10,7 @@
 static void check_gcc_version(void);
 static map_entry *construct_env(int argc, char *argv[]);
 static map_entry *construct_env_from_file(FILE *f);
+static void destruct_map(map_entry *root);
 
 //https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
 static void check_gcc_version(void){
@@ -29,6 +30,7 @@ static map_entry *construct_env_from_file(FILE *f){
   map_entry *current = malloc(sizeof(map_entry));
 
   current->key = NULL;
+  current->value = NULL;
   current->sub = NULL;
 
   while(!feof(f)){
@@ -44,12 +46,14 @@ static map_entry *construct_env_from_file(FILE *f){
         HASH_ADD_STR(root, key, current);
         current = malloc(sizeof(map_entry));
         current->key = NULL;
+        current->value = NULL;
         current->sub = NULL;
       }
     }else{
       char *eq = strpbrk(line, "=");
       *eq = 0;
       map_entry *lvl2 = malloc(sizeof(map_entry));
+      lvl2->sub = NULL;
       lvl2->key = strdup(line);
       lvl2->value = strdup(eq + 1);
 
@@ -90,22 +94,33 @@ static map_entry *construct_env(int argc, char *argv[]){
   return ret;
 }
 
-int main(int argc, char *argv[]) {
-  check_gcc_version();
-  map_entry *root = construct_env(argc, argv);
-
-
+static void destruct_map(map_entry *root){
   map_entry *item1, *item2, *tmp1, *tmp2;
   HASH_ITER(hh, root, item1, tmp1) {
     printf("key %s\n",item1->key);
     HASH_ITER(hh, item1->sub, item2, tmp2) {
       printf("key = %s value = %s \n", item2->key, item2->value);
       HASH_DEL(item1->sub, item2);
+      free(item2->key);
+      free(item2->value);
+      free(item2->sub);
       free(item2);
     }
     printf("\n\n");
     HASH_DEL(root, item1);
+    free(item1->key);
+    free(item1->value);
+    free(item1->sub);
     free(item1);
   }
+}
+
+int main(int argc, char *argv[]) {
+  check_gcc_version();
+  map_entry *root = construct_env(argc, argv);
+
+
+  destruct_map(root);
+
   return 0;
 }

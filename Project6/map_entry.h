@@ -7,8 +7,8 @@
 
 #include "uthash.h"
 typedef struct map_entry{
-    const char *key;
-    const char *value;
+    char *key;
+    char *value;
     struct map_entry *sub;
     UT_hash_handle hh;
 } map_entry;
