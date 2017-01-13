@@ -6,6 +6,8 @@
 #include "map_entry.h"
 #include "string.h"
 #include "ctype.h"
+#include "server.h"
+
 #define MAX_CONFIG_LINE_L 100
 static void check_gcc_version(void);
 static map_entry *construct_env(int argc, char *argv[]);
@@ -119,6 +121,7 @@ int main(int argc, char *argv[]) {
   check_gcc_version();
   map_entry *root = construct_env(argc, argv);
 
+  start_server(root);
 
   destruct_map(root);
 
