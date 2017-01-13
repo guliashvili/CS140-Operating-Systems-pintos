@@ -35,7 +35,7 @@ void processor_init() {
     exit(1);
   }
 
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < NUM_OF_WORKERS; i++) {
     pthread_t a;
     assert(!pthread_create(&a, NULL, processor, NULL));
   }

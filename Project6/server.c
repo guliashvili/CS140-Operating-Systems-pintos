@@ -11,14 +11,16 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
 #include "stdbool.h"
+#include <netinet/tcp.h>
 #include "processor.h"
 
 long long processor_state_routine (struct processor_state *aux){
   static const char *msg = "HTTP/1.0 200 OK\n"
-          "Date: Fri, 31 Dec 1999 23:59:59 GMT\n"
           "Content-Type: text/html\n"
-          "Content-Length: 1354\n"
+          "Content-Length: 93\n"
           "\n"
           "<html>\n"
           "<body>\n"
@@ -29,47 +31,66 @@ long long processor_state_routine (struct processor_state *aux){
           "  .\n"
           "</body>\n"
           "</html>";
-  int err = send(aux->fd, msg, strlen(msg), 0);
+  int err = write(aux->fd, msg, strlen(msg));
   if (err < 0){
     fprintf(stderr, " Error in send");
     exit(1);
   }
+
+  close(aux->fd);
 }
 
 void *one_port_listener(void *aux) {
-  int sockfd, newsockfd, portno;
-  socklen_t clilen;
-  struct sockaddr_in serv_addr, cli_addr;
+  int port = (long) aux;
 
-  sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0) {
-    fprintf(stderr, "ERROR opening socket");
-    return NULL;
-  }
-  bzero((char *) &serv_addr, sizeof(serv_addr));
-  portno = (long) aux;
-  printf("listening to port %d\n", portno);
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = INADDR_ANY;
-  serv_addr.sin_port = htons(portno);
-  if (bind(sockfd, (struct sockaddr *) &serv_addr,
-           sizeof(serv_addr)) < 0) {
-    fprintf(stderr, "ERROR on binding");
-    close(sockfd);
-    return NULL;
-  }
-  listen(sockfd, 5);
-  clilen = sizeof(cli_addr);
-  newsockfd = accept(sockfd,
-                     (struct sockaddr *) &cli_addr,
-                     &clilen);
-  if (newsockfd < 0)
-    return NULL;
 
-  processor_state *data = malloc(sizeof(processor_state));
-  data->fd = newsockfd;
-  data->start_routine = processor_state_routine;
-  processor_add(newsockfd, 1, data);
+  int server_fd, err;
+  struct sockaddr_in server, client;
+
+  server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (server_fd < 0){
+    fprintf(stderr, "could not create socket \n");
+    exit(1);
+  }
+
+  server.sin_family = AF_INET;
+  server.sin_port = htons(port);
+  server.sin_addr.s_addr = htonl(INADDR_ANY);
+
+  int opt_val = 1;
+  setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof opt_val);
+
+  err = bind(server_fd, (struct sockaddr *) &server, sizeof(server));
+  if (err < 0){
+    fprintf(stderr, "error in binding \n");
+    exit(1);
+  }
+
+  err = listen(server_fd, 128);
+
+  if (err < 0) {
+    fprintf(stderr, "Could not listen on socket\n");
+    exit(1);
+  }
+
+  printf("Server is listening on %d\n", port);
+  unsigned clilen = sizeof(client);
+  while(1) {
+    printf("waiting for fd\n");
+    fflush(stdout);
+    int newsockfd = accept(server_fd,
+                       (struct sockaddr *) &client,
+                       &clilen);
+    printf("got new fd %d",newsockfd);
+    fflush(stdout);
+    if (newsockfd < 0)
+      return NULL;
+
+    processor_state *data = malloc(sizeof(processor_state));
+    data->fd = newsockfd;
+    data->start_routine = processor_state_routine;
+    processor_add(newsockfd, 1, data);
+  }
 }
 
 
