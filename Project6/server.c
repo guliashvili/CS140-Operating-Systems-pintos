@@ -16,8 +16,7 @@
 #include "stdbool.h"
 #include <netinet/tcp.h>
 #include "processor.h"
-
-#define BUFFER_LEN 1000
+#include "http_helper.h"
 
 long long processor_state_routine (struct processor_state *aux){
   static const char *msg = "HTTP/1.0 200 OK\n"
@@ -33,6 +32,9 @@ long long processor_state_routine (struct processor_state *aux){
           "  .\n"
           "</body>\n"
           "</html>";
+
+  http_map_entry *http = http_parse(aux->fd);
+  http_destroy(http);
 
   int err = write(aux->fd, msg, strlen(msg));
   if (err < 0){
