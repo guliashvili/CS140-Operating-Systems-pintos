@@ -33,13 +33,37 @@ long long processor_state_routine (struct processor_state *aux){
           "</body>\n"
           "</html>";
 
-  http_map_entry *http = http_parse(aux->fd);
-  http_destroy(http);
 
-  int err = write(aux->fd, msg, strlen(msg));
-  if (err < 0){
-    fprintf(stderr, " Error in send");
-    exit(1);
+  time_t end_t = time(0);
+  bool first = true;
+  while(first || time(0) < end_t){
+    first = false;
+
+    http_map_entry *http = http_parse(aux->fd);
+
+    http_map_entry *entry = NULL;
+    HASH_FIND_STR(http, "connection", entry);
+    bool keep_alive = (entry != NULL) && (strcmp(entry->value, "keep_alive") == 0);
+
+    //process
+
+    http_destroy(http);
+
+    int err = write(aux->fd, msg, strlen(msg));
+    if (err < 0){
+      fprintf(stderr, " Error in send");
+      exit(1);
+    }
+    if(keep_alive) {
+      end_t = time(0) + 5;
+      int optval = 1;
+      int optlen = sizeof(optval);
+      if(setsockopt(aux->fd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+        fprintf(stderr, "Could not keep_alive socket\n");
+        close(aux->fd);
+        exit(EXIT_FAILURE);
+      }
+    }
   }
 
   close(aux->fd);
