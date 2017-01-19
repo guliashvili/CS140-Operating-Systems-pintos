@@ -10,9 +10,9 @@
 
 #define MAX_CONFIG_LINE_L 100
 static void check_gcc_version(void);
-static map_entry *construct_env(int argc, char *argv[]);
-static map_entry *construct_env_from_file(FILE *f);
-static void destruct_map(map_entry *root);
+static config_map_entry *construct_env(int argc, char *argv[]);
+static config_map_entry *construct_env_from_file(FILE *f);
+static void destruct_map(config_map_entry *root);
 
 //https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
 static void check_gcc_version(void){
@@ -25,11 +25,11 @@ static void check_gcc_version(void){
 #undef GCC_VERSION
 }
 
-static map_entry *construct_env_from_file(FILE *f){
-  map_entry *root = NULL;
+static config_map_entry *construct_env_from_file(FILE *f){
+  config_map_entry *root = NULL;
   char line[MAX_CONFIG_LINE_L + 1];
 
-  map_entry *current = malloc(sizeof(map_entry));
+  config_map_entry *current = malloc(sizeof(config_map_entry));
 
   current->key = NULL;
   current->value = NULL;
@@ -46,7 +46,7 @@ static map_entry *construct_env_from_file(FILE *f){
     if(strlen(line) == 0){
       if(current->key) {
         HASH_ADD_STR(root, key, current);
-        current = malloc(sizeof(map_entry));
+        current = malloc(sizeof(config_map_entry));
         current->key = NULL;
         current->value = NULL;
         current->sub = NULL;
@@ -54,7 +54,7 @@ static map_entry *construct_env_from_file(FILE *f){
     }else{
       char *eq = strpbrk(line, "=");
       *eq = 0;
-      map_entry *lvl2 = malloc(sizeof(map_entry));
+      config_map_entry *lvl2 = malloc(sizeof(config_map_entry));
       lvl2->sub = NULL;
       lvl2->key = strdup(line);
       lvl2->value = strdup(eq + 1);
@@ -77,7 +77,7 @@ static map_entry *construct_env_from_file(FILE *f){
   return root;
 }
 
-static map_entry *construct_env(int argc, char *argv[]){
+static config_map_entry *construct_env(int argc, char *argv[]){
   if(argc != 2){
     fprintf(stderr, "argc is %d", argc);
     exit(0);
@@ -89,15 +89,15 @@ static map_entry *construct_env(int argc, char *argv[]){
     exit(0);
   }
 
-  map_entry *ret = construct_env_from_file(f);
+  config_map_entry *ret = construct_env_from_file(f);
 
   fclose(f);
 
   return ret;
 }
 
-static void destruct_map(map_entry *root){
-  map_entry *item1, *item2, *tmp1, *tmp2;
+static void destruct_map(config_map_entry *root){
+  config_map_entry *item1, *item2, *tmp1, *tmp2;
   HASH_ITER(hh, root, item1, tmp1) {
     printf("key %s\n",item1->key);
     HASH_ITER(hh, item1->sub, item2, tmp2) {
@@ -119,7 +119,7 @@ static void destruct_map(map_entry *root){
 
 int main(int argc, char *argv[]) {
   check_gcc_version();
-  map_entry *root = construct_env(argc, argv);
+  config_map_entry *root = construct_env(argc, argv);
 
   start_server(root);
 

@@ -17,6 +17,8 @@
 #include <netinet/tcp.h>
 #include "processor.h"
 
+#define BUFFER_LEN 1000
+
 long long processor_state_routine (struct processor_state *aux){
   static const char *msg = "HTTP/1.0 200 OK\n"
           "Content-Type: text/html\n"
@@ -31,6 +33,7 @@ long long processor_state_routine (struct processor_state *aux){
           "  .\n"
           "</body>\n"
           "</html>";
+
   int err = write(aux->fd, msg, strlen(msg));
   if (err < 0){
     fprintf(stderr, " Error in send");
@@ -76,12 +79,10 @@ void *one_port_listener(void *aux) {
   printf("Server is listening on %d\n", port);
   unsigned clilen = sizeof(client);
   while(1) {
-    printf("waiting for fd\n");
     fflush(stdout);
     int newsockfd = accept(server_fd,
                        (struct sockaddr *) &client,
                        &clilen);
-    printf("got new fd %d",newsockfd);
     fflush(stdout);
     if (newsockfd < 0)
       return NULL;
@@ -94,15 +95,15 @@ void *one_port_listener(void *aux) {
 }
 
 
-void start_server(map_entry *root) {
+void start_server(config_map_entry *root) {
   processor_init();
 
   pthread_t *trd[1 << 16];
   memset(trd, 0, sizeof(trd));
 
-  map_entry *item1, *tmp1;
+  config_map_entry *item1, *tmp1;
   HASH_ITER(hh, root, item1, tmp1) {
-    map_entry *e = NULL;
+    config_map_entry *e = NULL;
     HASH_FIND_STR(item1->sub, "port", e);
     if (e) {
       long port = atoi(e->value);

@@ -6,12 +6,18 @@
 #define PROJECT6_MAP_ENTRY_H
 
 #include "uthash.h"
-typedef struct map_entry{
+typedef struct config_map_entry{
     char *key;
     char *value;
-    struct map_entry *sub;
+    struct config_map_entry *sub;
     UT_hash_handle hh;
-} map_entry;
+} config_map_entry;
 
+
+typedef struct http_map_entry{
+    char *key;
+    char *value;
+    UT_hash_handle hh;
+}http_map_entry;
 
 #endif //PROJECT6_MAP_ENTRY_H

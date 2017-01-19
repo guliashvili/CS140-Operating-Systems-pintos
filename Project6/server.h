@@ -8,6 +8,6 @@
 #include "uthash.h"
 #include "map_entry.h"
 
-void start_server(map_entry *root);
+void start_server(config_map_entry *root);
 
 #endif //PROJECT6_SERVER_H
