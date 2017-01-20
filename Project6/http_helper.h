@@ -13,5 +13,6 @@
 
 http_map_entry* http_parse(int fd);
 void http_destroy(http_map_entry *http);
+const char* http_get_val(http_map_entry *root, const char *key);
 
 #endif //PROJECT6_HTTP_HELPER_H

@@ -13,6 +13,7 @@ void processor_add(int fd, bool in, void *aux);
 
 typedef struct processor_state{
     int fd;
+    int port;
     long long (*start_routine) (struct processor_state *);
 }processor_state;
 

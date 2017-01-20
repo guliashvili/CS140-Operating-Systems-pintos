@@ -16,7 +16,7 @@
 static bool read_line(int fd, char *buffer, int n){
   char a = 0, b = 0, c = 0;
   int i = 0;
-  for(int j = 0; b != '\r' || c != '\n'; a = b, b = c, read(fd, &c, sizeof(c)), j++){
+  for(int j = 0; b != '\r' || c != '\n'; a = b, b = c, assert(read(fd, &c, sizeof(c)) > 0), j++){
     if(j >= 3){
       if(i >= n)
         return 0;
@@ -125,4 +125,11 @@ void http_destroy(http_map_entry *root){
   }
   printf("\n\n");
   fflush(stdout);
+}
+
+const char* http_get_val(http_map_entry *root, const char *key){
+  http_map_entry *item1 = NULL;
+  HASH_FIND_STR(root, key, item1);
+  if(item1) return item1->value;
+  else return NULL;
 }

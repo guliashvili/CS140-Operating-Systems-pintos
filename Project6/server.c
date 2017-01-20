@@ -17,9 +17,10 @@
 #include <netinet/tcp.h>
 #include "processor.h"
 #include "http_helper.h"
+#include "config.h"
 
-long long processor_state_routine (struct processor_state *aux){
-  static const char *msg = "HTTP/1.0 200 OK\n"
+void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
+  static const char *msg200 = "HTTP/1.0 200 OK\n"
           "Content-Type: text/html\n"
           "Content-Length: 93\n"
           "\n"
@@ -32,7 +33,42 @@ long long processor_state_routine (struct processor_state *aux){
           "  .\n"
           "</body>\n"
           "</html>";
+  static const char *msg400 = "HTTP/1.1 404 Not Found\n"
+          "Content-Type: text/html\n"
+          "Content-Length: 93\n"
+          "\n"
+          "<html>\n"
+          "<body>\n"
+          "<h1>NNNNN New Millennium!</h1>\n"
+          "(more file contents)\n"
+          "  .\n"
+          "  .\n"
+          "  .\n"
+          "</body>\n"
+          "</html>";
 
+
+
+  const char *tosend = msg200;
+  const char *domain = http_get_val(http, "host");
+  if(domain == NULL) tosend = msg400, printf("D\n");
+  else if(!vhost_exists(domain))
+    tosend = msg400, printf("A %s\n",domain);
+  else if(!config_value_exists(domain, "port"))
+    tosend = msg400, printf("B\n");
+  else if(atoi(config_get_value(domain, "port")) != aux->port)
+    tosend = msg400, printf("C %s \n", config_get_value(domain, "port"));
+
+
+  int err = write(aux->fd, tosend, strlen(tosend));
+  if (err < 0){
+    fprintf(stderr, " Error in send");
+    exit(1);
+  }
+
+}
+
+long long processor_state_routine (struct processor_state *aux){
 
   time_t end_t = time(0);
   bool first = true;
@@ -46,24 +82,14 @@ long long processor_state_routine (struct processor_state *aux){
     bool keep_alive = (entry != NULL) && (strcmp(entry->value, "keep_alive") == 0);
 
     //process
+    processor_inner_routine(aux, http);
+
 
     http_destroy(http);
 
-    int err = write(aux->fd, msg, strlen(msg));
-    if (err < 0){
-      fprintf(stderr, " Error in send");
-      exit(1);
-    }
-    if(keep_alive) {
+    if(keep_alive)
       end_t = time(0) + 5;
-      int optval = 1;
-      int optlen = sizeof(optval);
-      if(setsockopt(aux->fd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
-        fprintf(stderr, "Could not keep_alive socket\n");
-        close(aux->fd);
-        exit(EXIT_FAILURE);
-      }
-    }
+
   }
 
   close(aux->fd);
@@ -115,6 +141,7 @@ void *one_port_listener(void *aux) {
 
     processor_state *data = malloc(sizeof(processor_state));
     data->fd = newsockfd;
+    data->port = port;
     data->start_routine = processor_state_routine;
     processor_add(newsockfd, 1, data);
   }
