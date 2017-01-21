@@ -15,24 +15,15 @@
 #include <linux/sockios.h>
 #include "stdbool.h"
 #include <netinet/tcp.h>
+#include <dirent.h>
 #include "processor.h"
 #include "http_helper.h"
 #include "config.h"
+#include <sys/sendfile.h>
+#include <fcntl.h>
+#include <libut.h>
 
-void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
-  static const char *msg200 = "HTTP/1.0 200 OK\r\n"
-          "Content-Type: text/html\r\n"
-          "Content-Length: 93\r\n"
-          "\r\n"
-          "<html>\n"
-          "<body>\n"
-          "<h1>Happy New Millennium!</h1>\n"
-          "(more file contents)\n"
-          "  .\n"
-          "  .\n"
-          "  .\n"
-          "</body>\n"
-          "</html>";
+static bool push404(struct processor_state *aux){
   static const char *msg400 = "HTTP/1.1 404 Not Found\r\n"
           "Content-Type: text/html\r\n"
           "Content-Length: 207\r\n"
@@ -47,52 +38,147 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
           "<p>Error code explanation: 404 = Nothing matches the given URI.\n"
           "</body></html>";
 
+  int err = write(aux->fd, msg400, strlen(msg400));
+  if (err < 0)
+    fprintf(stderr, " Error in send");
+}
 
+static bool was404_error(struct processor_state *aux, http_map_entry *http, char **domaain){
 
   char *domain_port = strdup(http_get_val(http, "host"));
-  char *domain = NULL;
   char *port = NULL;
 
   bool is404 = false;
   int i = 0;
+  *domaain = NULL;
   for (char *save_ptr, *token = strtok_r (domain_port, ":", &save_ptr); token != NULL;
        token = strtok_r (NULL, ":", &save_ptr), i++){
-      if(i == 0){ // domain
-        domain = strdup(token);
-      }else if(i == 1){ // port
-        port = strdup(token);
-      }else if(i == 2){
-        is404 = true;
-      }
+    if(i == 0){ // domain
+      *domaain = strdup(token);
+    }else if(i == 1){ // port
+      port = strdup(token);
+    }else if(i == 2){
+      is404 = true;
+    }
   }
   free(domain_port);
   if(port == NULL) port = strdup("80");
 
-  if(domain == NULL || !vhost_exists(domain) || !config_value_exists(domain, "port")
-    || atoi(config_get_value(domain, "port")) != aux->port || atoi(port) != aux->port){
+  if(*domaain == NULL || !vhost_exists(*domaain) || !config_value_exists(*domaain, "port")
+     || atoi(config_get_value(*domaain, "port")) != aux->port || atoi(port) != aux->port){
     is404 = true;
   }
-  free(domain);
   free(port);
-  if(is404){
-    int err = write(aux->fd, msg400, strlen(msg400));
-    if (err < 0)
-      fprintf(stderr, " Error in send");
+  if(is404)
+    push404(aux);
 
+
+  return is404;
+}
+
+void push_construct_dir(struct processor_state *aux, DIR *dir){
+  UT_string *header, *body;
+  utstring_new(body);
+  utstring_new(header);
+
+  utstring_printf(body, "<html><title>I love gio</title><body>"
+          "<h2>Directory listing for /</h2>"
+          "<hr>"
+          "<ul>");
+  struct dirent *d;
+  while(d = readdir(dir)){
+    if(!strstr(d->d_name, ".")){
+      utstring_printf(body, "<li><a href=\"%s/\">%s/</a>\n", d->d_name, d->d_name);
+    }
+  }
+
+  utstring_printf(body, "</ul>"
+          "<hr>"
+          "</body>"
+          "</html>");
+
+
+  utstring_printf(header, "HTTP/1.0 200 OK\r\n"
+          "Content-Type: text/html\r\n"
+          "Content-Length: %d\r\n"
+          "\r\n"
+          "%s", (int)strlen(utstring_body(body)), utstring_body(body));
+
+  if(write(aux->fd, utstring_body(header), strlen(utstring_body(header))) < 0){
+    fprintf(stderr, "error in sending\n");
+  }
+
+  utstring_free(body);
+  utstring_free(header);
+}
+void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
+  static const char *msg200 = "HTTP/1.0 200 OK\r\n"
+          "Content-Type: text/html\r\n"
+          "Content-Length: 93\r\n"
+          "\r\n"
+          "<html>\n"
+          "<body>\n"
+          "<h1>Happy New Millennium!</h1>\n"
+          "(more file contents)\n"
+          "  .\n"
+          "  .\n"
+          "  .\n"
+          "</body>\n"
+          "</html>";
+
+  char *domain;
+  if(was404_error(aux, http, &domain)) {
+    free(domain);
+    return;
+  }
+  char *main_folder = config_get_value(domain, "documentroot");
+  const char *relative_folder = http_get_val(http, HTTP_URI);
+
+  if(strstr(relative_folder, ".")){
+    fprintf(stderr, "dots(.) are prohibited for safety reasons\n");
+    push404(aux);
+    free(domain);
     return;
   }
 
+  char *help_folder = strcat(calloc(strlen(relative_folder) + strlen(main_folder) + 20,1), main_folder);
+  help_folder = strcat(help_folder, "/");
+  help_folder = strcat(help_folder, relative_folder);
+  DIR *dir = opendir(help_folder);
+
+  help_folder = strcat(help_folder, "/index.html");
+  int file_fd = open(help_folder, O_RDONLY);
+  free(help_folder);
+
+  if(file_fd >= 0){
+    sendfile(aux->fd, file_fd, NULL, 100);
+  }else if(dir){
+    fprintf(stderr, "Could not chdir to relative folder\n");
+    push_construct_dir(aux, dir);
+
+    closedir(dir);
+    close(file_fd);
+    free(domain);
+    return;
+  }else{
+    fprintf(stderr, "Could not chdir to relative folder\n");
+    push404(aux);
+    closedir(dir);
+    close(file_fd);
+    free(domain);
+    return;
+  }
+
+  closedir(dir);
+  close(file_fd);
   int err = write(aux->fd, msg200, strlen(msg200));
   if (err < 0)
     fprintf(stderr, " Error in send");
 
-
-
-
+  free(domain);
 }
 
 long long processor_state_routine (struct processor_state *aux){
-
   time_t end_t = time(0);
   bool first = true;
   while(first || time(0) < end_t){
