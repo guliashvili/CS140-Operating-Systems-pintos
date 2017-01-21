@@ -20,10 +20,10 @@
 #include "config.h"
 
 void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
-  static const char *msg200 = "HTTP/1.0 200 OK\n"
-          "Content-Type: text/html\n"
-          "Content-Length: 93\n"
-          "\n"
+  static const char *msg200 = "HTTP/1.0 200 OK\r\n"
+          "Content-Type: text/html\r\n"
+          "Content-Length: 93\r\n"
+          "\r\n"
           "<html>\n"
           "<body>\n"
           "<h1>Happy New Millennium!</h1>\n"
@@ -33,38 +33,61 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
           "  .\n"
           "</body>\n"
           "</html>";
-  static const char *msg400 = "HTTP/1.1 404 Not Found\n"
-          "Content-Type: text/html\n"
-          "Content-Length: 93\n"
-          "\n"
-          "<html>\n"
+  static const char *msg400 = "HTTP/1.1 404 Not Found\r\n"
+          "Content-Type: text/html\r\n"
+          "Content-Length: 207\r\n"
+          "\r\n"
+          "<html><head>\n"
+          "<title>Error response</title>\n"
+          "</head>\n"
           "<body>\n"
-          "<h1>NNNNN New Millennium!</h1>\n"
-          "(more file contents)\n"
-          "  .\n"
-          "  .\n"
-          "  .\n"
-          "</body>\n"
-          "</html>";
+          "<h1>Error response</h1>\n"
+          "<p>Error code 404.\n"
+          "<p>Message: File not found.\n"
+          "<p>Error code explanation: 404 = Nothing matches the given URI.\n"
+          "</body></html>";
 
 
 
-  const char *tosend = msg200;
-  const char *domain = http_get_val(http, "host");
-  if(domain == NULL) tosend = msg400, printf("D\n");
-  else if(!vhost_exists(domain))
-    tosend = msg400, printf("A %s\n",domain);
-  else if(!config_value_exists(domain, "port"))
-    tosend = msg400, printf("B\n");
-  else if(atoi(config_get_value(domain, "port")) != aux->port)
-    tosend = msg400, printf("C %s \n", config_get_value(domain, "port"));
+  char *domain_port = strdup(http_get_val(http, "host"));
+  char *domain = NULL;
+  char *port = NULL;
 
-
-  int err = write(aux->fd, tosend, strlen(tosend));
-  if (err < 0){
-    fprintf(stderr, " Error in send");
-    exit(1);
+  bool is404 = false;
+  int i = 0;
+  for (char *save_ptr, *token = strtok_r (domain_port, ":", &save_ptr); token != NULL;
+       token = strtok_r (NULL, ":", &save_ptr), i++){
+      if(i == 0){ // domain
+        domain = strdup(token);
+      }else if(i == 1){ // port
+        port = strdup(token);
+      }else if(i == 2){
+        is404 = true;
+      }
   }
+  free(domain_port);
+  if(port == NULL) port = strdup("80");
+
+  if(domain == NULL || !vhost_exists(domain) || !config_value_exists(domain, "port")
+    || atoi(config_get_value(domain, "port")) != aux->port || atoi(port) != aux->port){
+    is404 = true;
+  }
+  free(domain);
+  free(port);
+  if(is404){
+    int err = write(aux->fd, msg400, strlen(msg400));
+    if (err < 0)
+      fprintf(stderr, " Error in send");
+
+    return;
+  }
+
+  int err = write(aux->fd, msg200, strlen(msg200));
+  if (err < 0)
+    fprintf(stderr, " Error in send");
+
+
+
 
 }
 
