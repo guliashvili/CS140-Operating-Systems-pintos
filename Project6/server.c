@@ -86,11 +86,14 @@ void push_construct_dir(struct processor_state *aux, DIR *dir){
           "<hr>"
           "<ul>");
   struct dirent *d;
-  while(d = readdir(dir)){
-    if(!strstr(d->d_name, ".")){
-      utstring_printf(body, "<li><a href=\"%s/\">%s/</a>\n", d->d_name, d->d_name);
+  while(d = readdir(dir))
+    if(strcmp(d->d_name, ".") && strcmp(d->d_name, "..")) {
+      if(strstr(d->d_name, "."))
+        utstring_printf(body, "<li><a href=\"%s\">%s/</a>\n", d->d_name, d->d_name);
+      else
+        utstring_printf(body, "<li><a href=\"%s/\">%s/</a>\n", d->d_name, d->d_name);
     }
-  }
+
 
   utstring_printf(body, "</ul>"
           "<hr>"
@@ -111,21 +114,39 @@ void push_construct_dir(struct processor_state *aux, DIR *dir){
   utstring_free(body);
   utstring_free(header);
 }
-void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
-  static const char *msg200 = "HTTP/1.0 200 OK\r\n"
-          "Content-Type: text/html\r\n"
-          "Content-Length: 93\r\n"
-          "\r\n"
-          "<html>\n"
-          "<body>\n"
-          "<h1>Happy New Millennium!</h1>\n"
-          "(more file contents)\n"
-          "  .\n"
-          "  .\n"
-          "  .\n"
-          "</body>\n"
-          "</html>";
 
+static void send_file_gio(int fd, int file_fd, const char *type){
+  FILE* fp = fdopen(file_fd, "r");
+  fseek(fp, 0, SEEK_END);
+  int length = ftell(fp) - 1;
+  rewind(fp);
+
+  char s[100];
+
+  if(strstr(type, ".html"))
+    type = "text/html";
+  else if(strstr(type, ".mp4"))
+    type = "video/mp4";
+  else if(strstr(type, ".jpg"))
+    type = "image/jpeg";
+  else{
+    fprintf(stderr, "could not detect the type %s\n",type);
+  }
+  sprintf(s, "HTTP/1.1 200 OK\r\n"
+          "Content-Length: %d\r\n"
+          "Content-Type: %s\r\n\r\n", length, type);
+
+  if(write(fd, s , strlen(s)) < 0){
+    fprintf(stderr, "Could not send info %d %s", fd, s);
+  }
+
+  lseek(file_fd, 0, SEEK_SET);
+
+  sendfile(fd, file_fd, NULL, length);
+
+  fclose(fp);
+}
+void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
   char *domain;
   if(was404_error(aux, http, &domain)) {
     free(domain);
@@ -133,9 +154,8 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
   }
   char *main_folder = config_get_value(domain, "documentroot");
   const char *relative_folder = http_get_val(http, HTTP_URI);
-
-  if(strstr(relative_folder, ".")){
-    fprintf(stderr, "dots(.) are prohibited for safety reasons\n");
+  if(strstr(relative_folder, "..")){
+    fprintf(stderr, "dots(..) are prohibited for safety reasons\n");
     push404(aux);
     free(domain);
     return;
@@ -146,34 +166,27 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
   help_folder = strcat(help_folder, relative_folder);
   DIR *dir = opendir(help_folder);
 
-  help_folder = strcat(help_folder, "/index.html");
   int file_fd = open(help_folder, O_RDONLY);
-  free(help_folder);
+  help_folder = strcat(help_folder, "/index.html");
+  int index_html_file_fd = open(help_folder, O_RDONLY);
 
-  if(file_fd >= 0){
-    sendfile(aux->fd, file_fd, NULL, 100);
+  if(index_html_file_fd >= 0){
+    send_file_gio(aux->fd, index_html_file_fd, ".html");
   }else if(dir){
-    fprintf(stderr, "Could not chdir to relative folder\n");
     push_construct_dir(aux, dir);
-
-    closedir(dir);
-    close(file_fd);
-    free(domain);
-    return;
-  }else{
+  }else if(file_fd >= 0){
+    help_folder[strlen(help_folder) - strlen("/index.html")] = 0;
+    int ind = strlen(help_folder) - 6;
+    if(ind < 0) ind = 0;
+    send_file_gio(aux->fd, file_fd, help_folder + ind);
+  }else {
     fprintf(stderr, "Could not chdir to relative folder\n");
     push404(aux);
-    closedir(dir);
-    close(file_fd);
-    free(domain);
-    return;
   }
 
+  free(help_folder);
   closedir(dir);
-  close(file_fd);
-  int err = write(aux->fd, msg200, strlen(msg200));
-  if (err < 0)
-    fprintf(stderr, " Error in send");
+  close(index_html_file_fd);
 
   free(domain);
 }

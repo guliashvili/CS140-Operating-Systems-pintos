@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include "http_helper.h"
 #include "string_helper.h"
+#include "url.h"
 
 #define BUFFER_LEN 5000
 
@@ -35,7 +36,8 @@ static bool parse_first_line(http_map_entry** root, char *s){
        token = strtok_r (NULL, " ", &save_ptr), i++){
     http_map_entry *current = malloc(sizeof(http_map_entry));
 
-    current->value = str_to_lower(strdup(token));
+    current->value = calloc(1, strlen(token) * 2 + 2);
+    url_decode(current->value, token);
     if(i == 0)
       current->key = strdup(HTTP_METHOD);
     else if(i == 1)
@@ -63,7 +65,7 @@ static bool parse_normal_line(http_map_entry** root, char *s){
     if(i == 0)
       current->key = str_to_lower(strdup(token));
     else if(i == 1)
-      current->value = str_to_lower(strdup(token));
+      current->value = strdup(token);
     else
       assert(0);
   }

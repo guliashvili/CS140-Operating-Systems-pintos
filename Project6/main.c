@@ -8,6 +8,7 @@
 #include "ctype.h"
 #include "server.h"
 #include "config.h"
+#include "url.h"
 
 static void check_gcc_version(void);
 //https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
