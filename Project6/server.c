@@ -11,10 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <sys/ioctl.h>
-#include <linux/sockios.h>
 #include "stdbool.h"
-#include <netinet/tcp.h>
 #include <dirent.h>
 #include "processor.h"
 #include "http_helper.h"
@@ -22,6 +19,7 @@
 #include <sys/sendfile.h>
 #include <fcntl.h>
 #include <libut.h>
+#include <sys/epoll.h>
 
 static bool push404(struct processor_state *aux){
   static const char *msg400 = "HTTP/1.1 404 Not Found\r\n"
@@ -192,10 +190,18 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http){
 }
 
 long long processor_state_routine (struct processor_state *aux){
-  time_t end_t = time(0);
-  bool first = true;
-  while(first || time(0) < end_t){
-    first = false;
+
+  while(1) {
+    int tmp_epoll = epoll_create1(EPOLL_CLOEXEC);
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLONESHOT;
+    if (!epoll_ctl(tmp_epoll, EPOLL_CTL_ADD, aux->fd, &ev) == -1) {
+      fprintf(stderr, "Could not add in epoll");
+      close(tmp_epoll);
+      return 0;
+    }
+
+    if(!epoll_wait(tmp_epoll, &ev, 1, 5 * 1000)) break;
 
     http_map_entry *http = http_parse(aux->fd);
 
@@ -203,15 +209,15 @@ long long processor_state_routine (struct processor_state *aux){
     HASH_FIND_STR(http, "connection", entry);
     bool keep_alive = (entry != NULL) && (strcmp(entry->value, "keep_alive") == 0);
 
-    //process
     processor_inner_routine(aux, http);
 
-
     http_destroy(http);
+    if(keep_alive){
 
-    if(keep_alive)
-      end_t = time(0) + 5;
-
+    }else{
+      close(tmp_epoll);
+      break;
+    }
   }
 
   close(aux->fd);
@@ -253,11 +259,9 @@ void *one_port_listener(void *aux) {
   printf("Server is listening on %d\n", port);
   unsigned clilen = sizeof(client);
   while(1) {
-    fflush(stdout);
     int newsockfd = accept(server_fd,
                        (struct sockaddr *) &client,
                        &clilen);
-    fflush(stdout);
     if (newsockfd < 0)
       return NULL;
 
