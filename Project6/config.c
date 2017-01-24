@@ -5,10 +5,22 @@
 #include "config.h"
 #include <stdio.h>
 #include <assert.h>
+#include <pthread.h>
 #include "ctype.h"
 
-#define MAX_CONFIG_LINE_L 100
+#define MAX_CONFIG_LINE_L 300
 static config_map_entry *ROOT = NULL;
+
+static void add_lock(const char *key, config_map_entry *current){
+
+  config_map_entry *lvl2 = malloc(sizeof(config_map_entry));
+  lvl2->sub = NULL;
+  lvl2->key = strdup(key);
+  lvl2->value = malloc(sizeof(pthread_mutex_t));
+  pthread_mutex_init((pthread_mutex_t*)lvl2->value, NULL);
+
+  HASH_ADD_STR(current->sub, key, lvl2);
+}
 
 static config_map_entry *construct_env_from_file(FILE *f) {
   config_map_entry *root = NULL;
@@ -21,7 +33,8 @@ static config_map_entry *construct_env_from_file(FILE *f) {
   current->sub = NULL;
 
   while (!feof(f)) {
-    assert(fgets(line, MAX_CONFIG_LINE_L, f));
+    if(!fgets(line, MAX_CONFIG_LINE_L, f) && feof(f)) break;
+
     int k = 0;
     for (int i = 0; line[i]; i++)
       if (!isspace(line[i]))
@@ -30,6 +43,7 @@ static config_map_entry *construct_env_from_file(FILE *f) {
 
     if (strlen(line) == 0) {
       if (current->key) {
+        add_lock(LOG_INFO_KEY, current);
         HASH_ADD_STR(root, key, current);
         current = malloc(sizeof(config_map_entry));
         current->key = NULL;
@@ -56,8 +70,12 @@ static config_map_entry *construct_env_from_file(FILE *f) {
     }
 
   }
-  if (current->key) HASH_ADD_STR(root, key, current);
+  if (current->key) {
+    add_lock(LOG_INFO_KEY, current);
 
+    HASH_ADD_STR(root, key, current);
+  } else
+    free(current);
 
   return root;
 }
@@ -117,6 +135,8 @@ bool config_value_exists(const char *domain, const char *key) {
 }
 
 void *config_get_value(const char *domain, const char *key) {
+  assert(domain);
+  assert(key);
   config_map_entry *entry = NULL, *entry2 = NULL;
   HASH_FIND_STR(ROOT, domain, entry);
   assert(entry);

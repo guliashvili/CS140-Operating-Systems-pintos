@@ -38,18 +38,17 @@ static bool push404(struct processor_state *aux) {
   }
 }
 
-static bool was404_error(struct processor_state *aux, http_map_entry *http, char **domaain) {
-
+static bool was404_error(struct processor_state *aux, http_map_entry *http) {
   char *domain_port = strdup(http_get_val(http, "host"));
+  char *domain = NULL;
   char *port = NULL;
 
   bool is404 = false;
   int i = 0;
-  *domaain = NULL;
-  for (char *save_ptr, *token = strtok_r(domain_port, ":", &save_ptr); token != NULL;
+  for (char *save_ptr = NULL, *token = strtok_r(domain_port, ":", &save_ptr); token != NULL;
        token = strtok_r(NULL, ":", &save_ptr), i++) {
     if (i == 0) { // domain
-      *domaain = strdup(token);
+      domain = strdup(token);
     } else if (i == 1) { // port
       port = strdup(token);
     } else if (i == 2) {
@@ -59,14 +58,16 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http, char
   free(domain_port);
   if (port == NULL) port = strdup("80");
 
-  if (*domaain == NULL || !vhost_exists(*domaain) || !config_value_exists(*domaain, "port")
-      || atoi(config_get_value(*domaain, "port")) != aux->port || atoi(port) != aux->port) {
+  if (domain == NULL || !vhost_exists(domain) || !config_value_exists(domain, "port")
+      || atoi(config_get_value(domain, "port")) != aux->port || atoi(port) != aux->port) {
     is404 = true;
   }
   free(port);
   if (is404)
     push404(aux);
 
+  http_put_val(http, HTTP_TRIMMED_DOMAIN, domain);
+  free(domain);
 
   return is404;
 }
@@ -140,7 +141,7 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
 
   int err = write(fd, s, strlen(s));
   if (err >= 0) log->sent_length += strlen(s);
-  log->sent_length = 200;
+  log->status_code = 200;
 
   if (err < 0 || (unsigned) err != strlen(s)) {
     char str[100];
@@ -150,23 +151,27 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
 
   lseek(file_fd, 0, SEEK_SET);
 
-  sendfile(fd, file_fd, NULL, length);
+  err = sendfile(fd, file_fd, NULL, length);
+  log->sent_length += length;
+  if(err < 0 || err != length){
+    char str[100];
+    sprintf(str, "sendfile sent less %d", err);
+    log_write_error(log, str);
+  }
 
   fclose(fp);
 }
 
 void processor_inner_routine(struct processor_state *aux, http_map_entry *http) {
-  char *domain;
-  if (was404_error(aux, http, &domain)) {
-    free(domain);
+  if (was404_error(aux, http)) {
     return;
   }
-  char *main_folder = config_get_value(domain, "documentroot");
+
+  char *main_folder = config_get_value(http_get_val(http, HTTP_TRIMMED_DOMAIN), "documentroot");
   const char *relative_folder = http_get_val(http, HTTP_URI);
   if (strstr(relative_folder, "..")) {
     fprintf(stderr, "dots(..) are prohibited for safety reasons\n");
     push404(aux);
-    free(domain);
     return;
   }
 
@@ -196,8 +201,6 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http) 
   free(help_folder);
   closedir(dir);
   close(index_html_file_fd);
-
-  free(domain);
 }
 
 long long processor_state_routine(struct processor_state *aux) {

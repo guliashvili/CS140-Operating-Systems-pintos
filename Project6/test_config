@@ -3,11 +3,11 @@ documentroot = /home/a/Desktop/host/domain1
 cgi-bin = /path/to/example1/cgi-bin/
 ip =  127.0.0.1
 port = 8080
-log = /path/to/logs/example1.log
+log = /home/a/Desktop/host/domain1/example1.log
 
 vhost = domain2.ru
 documentroot = /home/a/Desktop/host/domain2
 cgi-bin =
 ip = 127.0.0.1
 port = 80
-log = /path/to/logs/example2.log
+log = /home/a/Desktop/host/domain1/example2.log

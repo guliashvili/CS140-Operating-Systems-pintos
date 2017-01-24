@@ -11,7 +11,9 @@
 #define HTTP_VERSION "http_version"
 #define HTTP_URI "http_uri"
 #define HTTP_CONTENT "http_content"
+#define HTTP_TRIMMED_DOMAIN "http_trimmed_domain"
 
+void http_put_val(http_map_entry *root, char *key, char *value);
 
 http_map_entry *http_parse(int fd);
 

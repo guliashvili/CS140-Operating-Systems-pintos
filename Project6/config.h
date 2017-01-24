@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include "map_entry.h"
+#define LOG_INFO_KEY "log_info_lock_key"
 
 config_map_entry *register_config(int argc, char *argv[]);
 

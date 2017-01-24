@@ -1,7 +1,7 @@
 //
 // Created by a on 1/19/17.
 //
-
+//http://tinyhttpd.sourceforge.net/
 #include <sys/socket.h>
 #include <unistd.h>
 #include <assert.h>
@@ -17,7 +17,15 @@
 static bool read_line(int fd, char *buffer, int n) {
   char a = 0, b = 0, c = 0;
   int i = 0;
-  for (int j = 0; b != '\r' || c != '\n'; a = b, b = c, assert(read(fd, &c, sizeof(c)) > 0), j++) {
+  bool could = true;
+  for (int j = 0; b != '\r' || c != '\n'; a = b, b = c, could = read(fd, &c, sizeof(c)), j++) {
+    if(!could) {
+      if(a) buffer[i++] = a;
+      if(b) buffer[i++] = b;
+      if(c) buffer[i++] = c;
+      a = b = c = 0;
+      break;
+    }
     if (j >= 3) {
       if (i >= n)
         return 0;
@@ -25,7 +33,7 @@ static bool read_line(int fd, char *buffer, int n) {
       buffer[i] = 0;
     }
   }
-  buffer[i++] = a;
+  if(a) buffer[i++] = a;
   buffer[i] = 0;
   return 1;
 }
@@ -135,4 +143,12 @@ const char *http_get_val(http_map_entry *root, const char *key) {
   HASH_FIND_STR(root, key, item1);
   if (item1) return item1->value;
   else return NULL;
+}
+
+void http_put_val(http_map_entry *root, char *key, char *value){
+  http_map_entry *current = malloc(sizeof(http_map_entry));
+  current->key = strdup(key);
+  current->value = strdup(value);
+
+  HASH_ADD_STR(root, key, current);
 }
