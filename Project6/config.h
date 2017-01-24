@@ -9,9 +9,13 @@
 #include "map_entry.h"
 
 config_map_entry *register_config(int argc, char *argv[]);
+
 void destruct_config(config_map_entry *root);
+
 bool vhost_exists(const char *domain);
-bool config_value_exists(const char *domain, const char* key);
-void *config_get_value(const char *domain, const char* key);
+
+bool config_value_exists(const char *domain, const char *key);
+
+void *config_get_value(const char *domain, const char *key);
 
 #endif //PROJECT6_CONFIG_H

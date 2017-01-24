@@ -1,27 +1,20 @@
-#include <stdio.h>
-#include <assert.h>
-#include <pthread.h>
-#include <omp.h>
-#include "uthash.h"
+
 #include "map_entry.h"
-#include "string.h"
-#include "ctype.h"
 #include "server.h"
 #include "config.h"
-#include "url.h"
 
 static void check_gcc_version(void);
+
 //https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
-static void check_gcc_version(void){
+static void check_gcc_version(void) {
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if GCC_VERSION < 60200
-  #error
+#error
   assert(0);
 #endif
 
 #undef GCC_VERSION
 }
-
 
 
 int main(int argc, char *argv[]) {

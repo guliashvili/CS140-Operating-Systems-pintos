@@ -7,15 +7,20 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "logger.h"
 
 void processor_init();
+
 void processor_add(int fd, bool in, void *aux);
 
-typedef struct processor_state{
+typedef struct processor_state {
     int fd;
     int port;
-    long long (*start_routine) (struct processor_state *);
-}processor_state;
+
+    long long (*start_routine)(struct processor_state *);
+
+    struct log_info log_data;
+} processor_state;
 
 
 #endif //PROJECT6_PROCESSOR_H

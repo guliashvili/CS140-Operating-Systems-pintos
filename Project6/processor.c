@@ -3,11 +3,6 @@
 //
 
 #include "processor.h"
-#include <sys/epoll.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <pthread.h>
 #include <assert.h>
 
 #define NUM_OF_WORKERS 1024
