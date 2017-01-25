@@ -230,6 +230,7 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http) 
     push404(aux);
   }
 
+  close(file_fd);
   free(help_folder);
   closedir(dir);
   close(index_html_file_fd);

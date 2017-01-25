@@ -18,7 +18,7 @@ static bool read_line(int fd, char *buffer, int n) {
   char a = 0, b = 0, c = 0;
   int i = 0;
   bool could = true;
-  for (int j = 0; b != '\r' || c != '\n'; a = b, b = c, could = read(fd, &c, sizeof(c)), j++) {
+  for (int j = 0; b != '\r' || c != '\n'; a = b, b = c, could = read(fd, &c, 1), j++) {
     if(!could) {
       if(a) buffer[i++] = a;
       if(b) buffer[i++] = b;
