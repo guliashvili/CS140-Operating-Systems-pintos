@@ -59,6 +59,35 @@ static bool parse_first_line(http_map_entry **root, char *s) {
   return i == 3;
 }
 
+static void split_range(http_map_entry **root, char *value){
+  char *s = strdup(value);
+  int S = 0;
+  int E = INT32_MAX;
+
+  int i = 0;
+  for (char *save_ptr, *token = strtok_r(s, "= -", &save_ptr); token != NULL;
+       token = strtok_r(NULL, "= -", &save_ptr), i++) {
+    if(!strcmp(str_to_lower(token), "bytes")) continue;
+    if(i == 1) S = atoi(token);
+    else if(i == 2) E = atoi(token);
+  }
+
+  http_map_entry *current = malloc(sizeof(http_map_entry));
+  current->key = strdup(HTTP_SEND_S);
+  char *write = malloc(30);
+  sprintf(write, "%d", S);
+  current->value = write;
+  HASH_ADD_STR(*root, key, current);
+
+  current = malloc(sizeof(http_map_entry));
+  current->key = strdup(HTTP_SEND_E);
+  write = malloc(30);
+  sprintf(write, "%d", E);
+  current->value = write;
+  HASH_ADD_STR(*root, key, current);
+
+  free(s);
+}
 static bool parse_normal_line(http_map_entry **root, char *s) {
   int i = 0;
   http_map_entry *current = malloc(sizeof(http_map_entry));
@@ -78,6 +107,11 @@ static bool parse_normal_line(http_map_entry **root, char *s) {
       assert(0);
   }
   HASH_ADD_STR(*root, key, current);
+
+  if(strcmp(current->key, "range") == 0){
+    split_range(root, current->value);
+  }
+
   return i == 2;
 }
 

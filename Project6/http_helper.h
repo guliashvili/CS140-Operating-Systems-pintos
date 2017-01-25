@@ -12,6 +12,9 @@
 #define HTTP_URI "http_uri"
 #define HTTP_CONTENT "http_content"
 #define HTTP_TRIMMED_DOMAIN "http_trimmed_domain"
+#define HTTP_SEND_S "http_send_s"
+#define HTTP_SEND_E "http_send_e"
+
 
 void http_put_val(http_map_entry *root, char *key, char *value);
 
