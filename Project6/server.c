@@ -151,10 +151,9 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
 }
 
 static void send_file_gio(struct log_info *log, int fd, int file_fd, const char *type) {
-  FILE *fp = fdopen(file_fd, "r");
-  fseek(fp, 0, SEEK_END);
-  int length = ftell(fp) - 1;
-  rewind(fp);
+
+  int length = lseek(file_fd, 0, SEEK_END) - 1;
+  lseek(file_fd, 0, SEEK_SET);
 
   const char *S = http_get_val(log->root, HTTP_SEND_S);
   const char *E = http_get_val(log->root, HTTP_SEND_E);
@@ -193,7 +192,6 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
   }
 
   utstring_free(header);
-  fclose(fp);
 }
 
 void processor_inner_routine(struct processor_state *aux, http_map_entry *http) {
@@ -240,17 +238,6 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http) 
 long long processor_state_routine(struct processor_state *aux) {
 
   while (1) {
-    int tmp_epoll = epoll_create1(EPOLL_CLOEXEC);
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLONESHOT;
-    if (!epoll_ctl(tmp_epoll, EPOLL_CTL_ADD, aux->fd, &ev) == -1) {
-      log_write_error(&aux->log_data, "Could not add in epoll");
-      close(tmp_epoll);
-      break;
-    }
-
-    if (!epoll_wait(tmp_epoll, &ev, 1, 5 * 1000)) break;
-
     http_map_entry *http = http_parse(aux->fd);
 
     http_map_entry *entry = NULL;
@@ -267,11 +254,19 @@ long long processor_state_routine(struct processor_state *aux) {
 
     http_destroy(http);
     if (keep_alive) {
+      struct timeval tv;
 
-    } else {
-      close(tmp_epoll);
+      tv.tv_sec = 5;
+      tv.tv_usec = 0;
+
+      setsockopt(aux->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+
+      char c;
+      if(recv(aux->fd, &c, 1, MSG_PEEK) <= 0)
+        break;
+
+    } else
       break;
-    }
   }
 
   close(aux->fd);
@@ -320,6 +315,8 @@ void *one_port_listener(void *aux) {
       return NULL;
 
     processor_state *data = malloc(sizeof(processor_state));
+    assert(data);
+
     data->fd = newsockfd;
     data->port = port;
     data->start_routine = processor_state_routine;
@@ -344,7 +341,8 @@ void start_server(config_map_entry *root) {
     if (e) {
       long port = atoi(e->value);
       if (trd[port]) continue;
-      pthread_create(trd[port] = malloc(sizeof(pthread_t)), NULL, one_port_listener, (void *) port);
+      assert(trd[port] = malloc(sizeof(pthread_t)));
+      assert(!pthread_create(trd[port], NULL, one_port_listener, (void *) port));
     }
   }
 

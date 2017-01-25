@@ -19,6 +19,7 @@ void *processor(void *aux) {
     processor_state *program = (processor_state *) aux;
     program->start_routine(program);
 
+    free(program);
   }
 }
 
