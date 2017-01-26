@@ -2,6 +2,7 @@
 #include "map_entry.h"
 #include "server.h"
 #include "config.h"
+#include "etag_helper.h"
 
 static void check_gcc_version(void);
 
@@ -19,6 +20,7 @@ static void check_gcc_version(void) {
 
 int main(int argc, char *argv[]) {
   check_gcc_version();
+  etag_init();
   config_map_entry *root = register_config(argc, argv);
 
   start_server(root);

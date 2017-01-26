@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include "processor.h"
 #include "string_helper.h"
+#include "etag_helper.h"
 
 static bool push404(struct processor_state *aux) {
   static const char *msg404 = "HTTP/1.1 404 Not Found\r\n"
@@ -73,7 +74,7 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http) {
   return is404;
 }
 
-UT_string *build_header(int length, const char *type, int status, int hash_code, bool accept_range, int s, int e){
+UT_string *build_header(int length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
   UT_string *header;
   utstring_new(header);
   if (strstr(type, ".html"))
@@ -90,6 +91,8 @@ UT_string *build_header(int length, const char *type, int status, int hash_code,
     utstring_printf(header, "HTTP/1.1 200 OK\r\n");
   }else if(status == 206) {
     utstring_printf(header, "HTTP/1.1 206 Partial Content\r\n");
+  }else if(status == 304){
+    utstring_printf(header, "HTTP/1.1 304 Not Modified\r\n");
   }else{
     assert(0);
   }
@@ -100,6 +103,10 @@ UT_string *build_header(int length, const char *type, int status, int hash_code,
     utstring_printf(header, "Accept-Ranges: bytes\r\n");
 
     utstring_printf(header, "Content-Range: bytes %d-%d/*\r\n", s, e);
+  }
+  if(hash_code != 0){
+    utstring_printf(header, "Cache-Control: max-age=5\r\n");
+    utstring_printf(header, "ETag: %s\r\n", hash_code);
   }
   utstring_printf(header,  "Content-Type: %s\r\n\r\n", type);
 
@@ -130,8 +137,18 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
           "</body>"
           "</html>");
 
+  char hash[30];
+  etag_generate_str(hash, 20, utstring_body(body), strlen(utstring_body(body)));
 
-  header = build_header((int)strlen(utstring_body(body)), ".html", 200, -1, false, -1, -1);
+  const char *last_hash;
+  int status = 200;
+  if(last_hash = http_get_val(aux->log_data.root, "if-none-match"))
+    if(!strcmp(last_hash, hash)){
+      status = 304;
+      utstring_free(body);
+      utstring_new(body);
+  }
+  header = build_header((int)strlen(utstring_body(body)), ".html", status, hash, false, -1, -1);
 
   utstring_printf(header, "%s", utstring_body(body));
 
@@ -168,7 +185,17 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
   s = MIN(s, length - 1);
   int status = (E || S) ? 206 : 200;
 
-  UT_string *header = build_header(length, type, status, -1, status == 206, s, e);
+  char hash[30];
+  etag_generate(hash, 20, file_fd);
+
+  const char *last_hash;
+  if(last_hash = http_get_val(log->root, "if-none-match"))
+    if(!strcmp(last_hash, hash)){
+      status = 304;
+      length = 0;
+    }
+
+  UT_string *header = build_header(length, type, status, hash, true, s, e);
   int err = write(fd, utstring_body(header), strlen(utstring_body(header)));
   if (err >= 0) log->sent_length += strlen(utstring_body(header));
   log->status_code = status;
@@ -179,18 +206,19 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
     log_write_error(log, str);
   }
 
-  lseek(file_fd, 0, SEEK_SET);
-  off_t of = s;
+  if(status != 304) {
+    lseek(file_fd, 0, SEEK_SET);
+    off_t of = s;
 
-  err = sendfile(fd, file_fd, &of, e - s + 1);
-  if(err >= 0)
-    log->sent_length += err;
-  if(err < 0 || err != e - s + 1){
-    char str[100];
-    sprintf(str, "sendfile sent less %d", err);
-    log_write_error(log, str);
+    err = sendfile(fd, file_fd, &of, e - s + 1);
+    if (err >= 0)
+      log->sent_length += err;
+    if (err < 0 || err != e - s + 1) {
+      char str[100];
+      sprintf(str, "sendfile sent less %d", err);
+      log_write_error(log, str);
+    }
   }
-
   utstring_free(header);
 }
 
