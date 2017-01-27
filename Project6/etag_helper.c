@@ -14,9 +14,13 @@
 
 #define ETAG_CHUNK 20
 
+// we have 2^po printable chars
 static int po;
+
+// array for printable chars
 static char *printables;
 
+// find's all the pritable chars, rounds it down to the nearest 2s power
 void etag_init(){
   int c = 0;
   for(int i = 0; i < 255; i++)
@@ -32,6 +36,9 @@ void etag_init(){
   }
 }
 
+/*
+ * given next chunk of the data, it recomputes the current hash, size <= 8 * ETAG_CHUNK
+ */
 static void add_hash(bool hash[8 * ETAG_CHUNK], const char *buf, int size){
   for(int i = 0; i < size; i++)
     for(int j = 0; j < 8; j++){
@@ -41,9 +48,12 @@ static void add_hash(bool hash[8 * ETAG_CHUNK], const char *buf, int size){
     }
 }
 
+/*
+ * if necessary truncates the hash
+ * if necessary fills printable with printables[0]
+ * transforms bit s into printable chars
+ */
 static void transform(char *printable, int size, const bool hash[8 * ETAG_CHUNK]){
-  memset(printable, '0', size);
-
   for(int i = 0, cur = 0, active = 0; cur < size; i++){
     if(i < 8 * ETAG_CHUNK)
       active |= hash[i] * (1<<(i % po));
@@ -54,7 +64,9 @@ static void transform(char *printable, int size, const bool hash[8 * ETAG_CHUNK]
   }
 
 }
-
+/*
+ * generates hash for c string
+ */
 void etag_generate_str(char *buf, int buf_size, char *in, int size){
   buf_size -= 3;
   assert(buf_size > 0);
@@ -73,7 +85,9 @@ void etag_generate_str(char *buf, int buf_size, char *in, int size){
 
   transform(buf, buf_size, hash);
 }
-
+/*
+ * generates hash for file. In the end file offset is 0
+ */
 void etag_generate(char *buf, int buf_size, int file_fd){
   buf_size -= 3;
   assert(buf_size > 0);

@@ -77,15 +77,12 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http) {
 UT_string *build_header(int length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
   UT_string *header;
   utstring_new(header);
-  if (strstr(type, ".html"))
-    type = "text/html";
+  if (strstr(type, ".jpg"))
+    type = "image/jpeg";
   else if (strstr(type, ".mp4"))
     type = "video/mp4";
-  else if (strstr(type, ".jpg"))
-    type = "image/jpeg";
-  else {
-    assert(0);
-  }
+  else
+    type = "text/html";
 
   if(status == 200){
     utstring_printf(header, "HTTP/1.1 200 OK\r\n");
@@ -94,6 +91,7 @@ UT_string *build_header(int length, const char *type, int status, char *hash_cod
   }else if(status == 304){
     utstring_printf(header, "HTTP/1.1 304 Not Modified\r\n");
   }else{
+    //Its not a problem of user, so I'm not going to log it. Code is just wrong
     assert(0);
   }
 
@@ -101,7 +99,6 @@ UT_string *build_header(int length, const char *type, int status, char *hash_cod
   utstring_printf(header,  "Content-Length: %d\r\n", length);
   if(accept_range) {
     utstring_printf(header, "Accept-Ranges: bytes\r\n");
-
     utstring_printf(header, "Content-Range: bytes %d-%d/*\r\n", s, e);
   }
   if(hash_code != 0){
@@ -119,14 +116,14 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
   utstring_new(body);
 
   utstring_printf(body, "<html><title>I love gio</title><body>"
-          "<h2>Directory listing for /</h2>"
+          "<h2>Directory listing</h2>"
           "<hr>"
           "<ul>");
   struct dirent *d;
   while (d = readdir(dir))
     if (strcmp(d->d_name, ".") && strcmp(d->d_name, "..")) {
-      if (strstr(d->d_name, "."))
-        utstring_printf(body, "<li><a href=\"%s\">%s/</a>\n", d->d_name, d->d_name);
+      if (d->d_type != DT_DIR)
+        utstring_printf(body, "<li><a href=\"%s\">%s</a>\n", d->d_name, d->d_name);
       else
         utstring_printf(body, "<li><a href=\"%s/\">%s/</a>\n", d->d_name, d->d_name);
     }
@@ -268,6 +265,10 @@ long long processor_state_routine(struct processor_state *aux) {
 
   while (1) {
     http_map_entry *http = http_parse(aux->fd);
+    if(http == NULL){
+      fprintf(stderr, "Could not read something, fuck it anyway.\n");
+      break;
+    }
 
     http_map_entry *entry = NULL;
     HASH_FIND_STR(http, "connection", entry);

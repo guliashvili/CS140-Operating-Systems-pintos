@@ -150,8 +150,6 @@ http_map_entry *http_parse(int fd) {
     current->key = strdup(HTTP_CONTENT);
     HASH_ADD_STR(root, key, current);
   }
-  if (root == NULL)
-    fprintf(stderr, "Nothing to read in request? WAT?\n");
 
   return root;
 }
