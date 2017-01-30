@@ -74,7 +74,7 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http) {
   return is404;
 }
 
-UT_string *build_header(int length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
+UT_string *build_header(int length, int full_length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
   UT_string *header;
   utstring_new(header);
   if (strstr(type, ".jpg"))
@@ -90,6 +90,8 @@ UT_string *build_header(int length, const char *type, int status, char *hash_cod
     utstring_printf(header, "HTTP/1.1 206 Partial Content\r\n");
   }else if(status == 304){
     utstring_printf(header, "HTTP/1.1 304 Not Modified\r\n");
+  }else if(status == 416){
+    utstring_printf(header, "HTTP/1.1 416 Range Not Satisfiable\r\n");
   }else{
     //Its not a problem of user, so I'm not going to log it. Code is just wrong
     assert(0);
@@ -99,7 +101,10 @@ UT_string *build_header(int length, const char *type, int status, char *hash_cod
   utstring_printf(header,  "Content-Length: %d\r\n", length);
   if(accept_range) {
     utstring_printf(header, "Accept-Ranges: bytes\r\n");
-    utstring_printf(header, "Content-Range: bytes %d-%d/*\r\n", s, e);
+    if(status == 206)
+      utstring_printf(header, "Content-Range: bytes %d-%d/%d\r\n", s, e, full_length);
+    else
+      utstring_printf(header, "Content-Range: bytes */%d\r\n", full_length);
   }
   if(hash_code != 0){
     utstring_printf(header, "Cache-Control: max-age=5\r\n");
@@ -145,7 +150,7 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
       utstring_free(body);
       utstring_new(body);
   }
-  header = build_header((int)strlen(utstring_body(body)), ".html", status, hash, false, -1, -1);
+  header = build_header((int)strlen(utstring_body(body)), -1, ".html", status, hash, false, -1, -1);
 
   utstring_printf(header, "%s", utstring_body(body));
 
@@ -166,7 +171,8 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
 
 static void send_file_gio(struct log_info *log, int fd, int file_fd, const char *type) {
 
-  int length = lseek(file_fd, 0, SEEK_END) - 1;
+  int full_length;
+  int length = full_length = lseek(file_fd, 0, SEEK_END) - 1;
   lseek(file_fd, 0, SEEK_SET);
 
   const char *S = http_get_val(log->root, HTTP_SEND_S);
@@ -178,8 +184,8 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
   if(E == NULL) e = length - 1;
   else e = atoi(E);
 
+  s = MAX(s, 0);
   e = MIN(e, length - 1);
-  s = MIN(s, length - 1);
   int status = (E || S) ? 206 : 200;
 
   char hash[30];
@@ -192,7 +198,12 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
       length = 0;
     }
 
-  UT_string *header = build_header(length, type, status, hash, true, s, e);
+  if(s >= length || e < 0){
+    status = 416;
+    length = 0;
+  }
+
+  UT_string *header = build_header(length, full_length, type, status, hash, true, s, e);
   int err = write(fd, utstring_body(header), strlen(utstring_body(header)));
   if (err >= 0) log->sent_length += strlen(utstring_body(header));
   log->status_code = status;
