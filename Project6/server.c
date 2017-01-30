@@ -77,6 +77,12 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http) {
 UT_string *build_header(int length, int full_length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
   UT_string *header;
   utstring_new(header);
+  if(status == 416){
+    utstring_printf(header, "HTTP/1.1 416 Range Not Satisfiable\r\n");
+    utstring_printf(header, "Content-Range: bytes */%d\r\n", full_length);
+    return header;
+  }
+
   if (strstr(type, ".jpg"))
     type = "image/jpeg";
   else if (strstr(type, ".mp4"))
@@ -90,8 +96,6 @@ UT_string *build_header(int length, int full_length, const char *type, int statu
     utstring_printf(header, "HTTP/1.1 206 Partial Content\r\n");
   }else if(status == 304){
     utstring_printf(header, "HTTP/1.1 304 Not Modified\r\n");
-  }else if(status == 416){
-    utstring_printf(header, "HTTP/1.1 416 Range Not Satisfiable\r\n");
   }else{
     //Its not a problem of user, so I'm not going to log it. Code is just wrong
     assert(0);
@@ -101,10 +105,7 @@ UT_string *build_header(int length, int full_length, const char *type, int statu
   utstring_printf(header,  "Content-Length: %d\r\n", length);
   if(accept_range) {
     utstring_printf(header, "Accept-Ranges: bytes\r\n");
-    if(status == 206)
-      utstring_printf(header, "Content-Range: bytes %d-%d/%d\r\n", s, e, full_length);
-    else
-      utstring_printf(header, "Content-Range: bytes */%d\r\n", full_length);
+    utstring_printf(header, "Content-Range: bytes %d-%d/%d\r\n", s, e, full_length);
   }
   if(hash_code != 0){
     utstring_printf(header, "Cache-Control: max-age=5\r\n");
