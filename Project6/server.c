@@ -79,7 +79,7 @@ UT_string *build_header(int length, int full_length, const char *type, int statu
   utstring_new(header);
   if(status == 416){
     utstring_printf(header, "HTTP/1.1 416 Range Not Satisfiable\r\n");
-    utstring_printf(header, "Content-Range: bytes */%d\r\n", full_length);
+    utstring_printf(header, "Content-Range: bytes */%d\r\n\r\n", full_length);
     return header;
   }
 

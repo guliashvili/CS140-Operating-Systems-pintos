@@ -13,8 +13,9 @@ void *processor(void *aux) {
   while (1) {
     struct epoll_event ev;
     epoll_wait(epoll_fd, &ev, 1, -1);
+    if(ev.data.ptr == NULL) continue;
     aux = ev.data.ptr;
-    assert(aux);
+
 
     processor_state *program = (processor_state *) aux;
     program->start_routine(program);
