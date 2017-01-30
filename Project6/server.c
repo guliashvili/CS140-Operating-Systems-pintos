@@ -198,7 +198,7 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
       length = 0;
     }
 
-  if(s >= length || e < 0){
+  if(s >= length || e < 0 || s > e){
     status = 416;
     length = 0;
   }
