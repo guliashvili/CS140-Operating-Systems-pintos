@@ -235,7 +235,7 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
 static void do_cgi(struct processor_state *aux, http_map_entry *http){
   int fd = cgi_bin_execute(http);
   if(fd >= 0) {
-    char c[1000];
+    char c[100];
     int red;
     int err = write(aux->fd,  "HTTP/1.1 200 OK\r\n", strlen( "HTTP/1.1 200 OK\r\n"));
     if(err > 0) aux->log_data.sent_length += err;

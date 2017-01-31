@@ -19,16 +19,19 @@ void print_time(FILE *f){
 
 void log_write_error(struct log_info *log_info, const char *s) {
   bool needs_close = false;
-  FILE *f = stdout;
+  FILE *f = stderr;
   const char *domain;
   if(log_info){
     domain = http_get_val(log_info->root, HTTP_TRIMMED_DOMAIN);
     if(domain){
       if(!vhost_exists(domain)) s = "Unknown domain";
       else {
-        f = fopen(config_get_value(domain, "log"), "a+");
-        pthread_mutex_lock(config_get_value(domain, LOG_INFO_KEY));
-        needs_close = true;
+        if(f = fopen(config_get_value(domain, "log"), "a+")) {
+          pthread_mutex_lock(config_get_value(domain, LOG_INFO_KEY));
+          needs_close = true;
+        }else{
+          f = stderr;
+        }
       }
     }
   }
@@ -43,7 +46,7 @@ void log_write_error(struct log_info *log_info, const char *s) {
 
 void log_write_info(struct log_info *log_info) {
   bool needs_close = false;
-  FILE *f = stdout;
+  FILE *f = stderr;
   const char *domain;
   char ip[(3 + 2) * 4] = "unknown";
   if(log_info) {
@@ -53,8 +56,9 @@ void log_write_info(struct log_info *log_info) {
       else {
         inet_ntop(AF_INET, &(log_info->ipAddr), ip, INET_ADDRSTRLEN);
         pthread_mutex_lock(config_get_value(domain, LOG_INFO_KEY));
-        needs_close = true;
-        f = fopen(config_get_value(domain, "log"), "a+");
+        if(f = fopen(config_get_value(domain, "log"), "a+")) {
+          needs_close = true;
+        }else f = stdout;
       }
     }
   }
