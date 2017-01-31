@@ -13,6 +13,7 @@
 #include "processor.h"
 #include "string_helper.h"
 #include "etag_helper.h"
+#include "cgi_bin.h"
 
 static bool push404(struct processor_state *aux) {
   static const char *msg404 = "HTTP/1.1 404 Not Found\r\n"
@@ -231,8 +232,33 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
   utstring_free(header);
 }
 
+static void do_cgi(struct processor_state *aux, http_map_entry *http){
+  int fd = cgi_bin_execute(http);
+  if(fd >= 0) {
+    char c[1000];
+    int red;
+    int err = write(aux->fd,  "HTTP/1.1 200 OK\r\n", strlen( "HTTP/1.1 200 OK\r\n"));
+    if(err > 0) aux->log_data.sent_length += err;
+    aux->log_data.status_code = 200;
+    while ((red = read(fd, c, 1000)) > 0) {
+      int ret = write(aux->fd, c, red);
+      if (ret != red) {
+        fprintf(stderr, "\n\nCould not do somthing %d %d\n\n", ret, red);
+      }
+      aux->log_data.sent_length += red;
+    }
+    close(fd);
+  }else{
+    push404(aux);
+  }
+}
 void processor_inner_routine(struct processor_state *aux, http_map_entry *http) {
   if (was404_error(aux, http)) {
+    return;
+  }
+
+  if(is_cgi_bin(http_get_val(http, HTTP_URI))){
+    do_cgi(aux, http);
     return;
   }
 

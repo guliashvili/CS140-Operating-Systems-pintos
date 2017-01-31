@@ -105,16 +105,13 @@ config_map_entry *register_config(int argc, char *argv[]) {
 void destruct_config(config_map_entry *root) {
   config_map_entry *item1, *item2, *tmp1, *tmp2;
   HASH_ITER(hh, root, item1, tmp1) {
-    printf("key %s\n", item1->key);
     HASH_ITER(hh, item1->sub, item2, tmp2) {
-      printf("key = %s value = %s \n", item2->key, item2->value);
       HASH_DEL(item1->sub, item2);
       free(item2->key);
       free(item2->value);
       free(item2->sub);
       free(item2);
     }
-    printf("\n\n");
     HASH_DEL(root, item1);
     free(item1->key);
     free(item1->value);

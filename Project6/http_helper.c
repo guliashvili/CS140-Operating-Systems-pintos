@@ -151,6 +151,22 @@ http_map_entry *http_parse(int fd) {
     HASH_ADD_STR(root, key, current);
   }
 
+  if(root){
+    const char *length_s;
+    if(length_s = http_get_val(root, "content-length")){
+      int length = atoi(length_s);
+      char *con = malloc(length + 1);
+      char *work = con;
+      while(length > 0){
+        int rd = read(fd, work, length);
+        work += rd;
+        length -= rd;
+      }
+      con[length] = 0;
+      http_put_val(root, HTTP_CONTENT, con);
+    }
+  }
+
   return root;
 }
 
@@ -160,13 +176,11 @@ void http_destroy(http_map_entry *root) {
 
   http_map_entry *item1, *tmp1;
   HASH_ITER(hh, root, item1, tmp1) {
-    printf("http key %s value %s\n", item1->key, item1->value);
     HASH_DEL(root, item1);
     free(item1->key);
     free(item1->value);
     free(item1);
   }
-  printf("\n\n");
   fflush(stdout);
 }
 

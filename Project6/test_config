@@ -1,13 +1,13 @@
 vhost = domain1.com
 documentroot = /home/a/Desktop/host/domain1
-cgi-bin = /path/to/example1/cgi-bin/
+cgi-bin = /usr/share/gitweb
 ip =  127.0.0.1
 port = 8080
 log = /home/a/Desktop/host/domain1/example1.log
 
 vhost = domain2.ru
 documentroot = /home/a/Desktop/host/domain2
-cgi-bin =
+cgi-bin = /home/a/Desktop/guestbook
 ip = 127.0.0.1
 port = 80
 log = /home/a/Desktop/host/domain1/example2.log
