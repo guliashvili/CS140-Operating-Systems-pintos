@@ -181,7 +181,6 @@ void http_destroy(http_map_entry *root) {
     free(item1->value);
     free(item1);
   }
-  fflush(stdout);
 }
 
 const char *http_get_val(http_map_entry *root, const char *key) {
