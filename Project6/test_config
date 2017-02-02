@@ -7,7 +7,7 @@ log = /home/a/Desktop/host/domain1/example1.log
 
 vhost = domain2.ru
 documentroot = /home/a/Desktop/host/domain2
-cgi-bin = /home/a/Desktop/guestbook
+cgi-bin = /home/a/Desktop/host/domain2/cgi
 ip = 127.0.0.1
 port = 80
 log = /home/a/Desktop/host/domain1/example2.log

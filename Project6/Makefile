@@ -20,7 +20,7 @@ files += etag_helper.c
 files += cgi_bin.h
 files += cgi_bin.c
 http_server: $(files)
-	gcc -std=gnu11 $(files) -o http_server -O2 -march=native -Wextra -Wnull-dereference -fsanitize=bounds-strict -Winit-self -Wuninitialized -Wmisleading-indentation  -Wmissing-braces -Wmissing-include-dirs -Wsequence-point -Wunused -Wundef -fopenmp -pthread
+	gcc -std=gnu11 $(files) -o http_server -march=native -Wextra -Wnull-dereference -fsanitize=bounds-strict -Winit-self -Wuninitialized -Wmisleading-indentation  -Wmissing-braces -Wmissing-include-dirs -Wsequence-point -Wunused -Wundef -fopenmp -pthread
 
 .PHONY: clean
 clean:

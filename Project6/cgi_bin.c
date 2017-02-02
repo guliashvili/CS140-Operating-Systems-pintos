@@ -84,7 +84,6 @@ int cgi_bin_execute(http_map_entry *root){
     assert(path);
     char *const argv[] = {path, NULL};
     sprintf(path, "%s/%s", CGI, url);
-    fprintf(stderr, "path %s %s %s",path, CGI, url);
 
     exit(execv(path, argv));
 
