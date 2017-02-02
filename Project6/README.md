@@ -12,8 +12,8 @@ Project is Written by the group of developers:
 - [თორნიკე ჟიჟიაშვილი](https://github.com/RS200MT)
 
 ###External Libs
-პროექტს ჭირდება UT ბიბლიოტეკა.
-sudo apt-get update; sudo apt-get install uthash-dev
+პროექტს ჭირდება UT ბიბლიოტეკა.<br />
+sudo apt-get update; sudo apt-get install uthash-dev<br />
 
 ასევე საჭიროა gcc-6. <br />
 sudo apt-get update &&
