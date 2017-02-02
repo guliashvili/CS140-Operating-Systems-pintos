@@ -15,6 +15,9 @@
 #include "etag_helper.h"
 #include "cgi_bin.h"
 
+/*
+ * pushes 404 header
+ */
 static bool push404(struct processor_state *aux) {
   static const char *msg404 = "HTTP/1.1 404 Not Found\r\n"
           "Content-Type: text/html\r\n"
@@ -41,7 +44,10 @@ static bool push404(struct processor_state *aux) {
   }
 }
 
-static bool was404_error(struct processor_state *aux, http_map_entry *http) {
+/*
+ * parses header for error, pushes 404 in case of the problem.
+ */
+static static bool was404_error(struct processor_state *aux, http_map_entry *http) {
   char *domain_port = strdup(http_get_val(http, "host"));
   char *domain = NULL;
   char *port = NULL;
@@ -75,7 +81,10 @@ static bool was404_error(struct processor_state *aux, http_map_entry *http) {
   return is404;
 }
 
-UT_string *build_header(int length, int full_length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
+/*
+ * generic header builder for 416, 200, 206, 304 statuses
+ */
+static UT_string *build_header(int length, int full_length, const char *type, int status, char *hash_code, bool accept_range, int s, int e){
   UT_string *header;
   utstring_new(header);
   if(status == 416){
@@ -118,7 +127,10 @@ UT_string *build_header(int length, int full_length, const char *type, int statu
   return header;
 }
 
-void push_construct_dir(struct processor_state *aux, DIR *dir) {
+/*
+ * constructs and pushes directory structure in html, for directories without index.html
+ */
+static void push_construct_dir(struct processor_state *aux, DIR *dir) {
   UT_string *header, *body;
   utstring_new(body);
 
@@ -171,6 +183,9 @@ void push_construct_dir(struct processor_state *aux, DIR *dir) {
   utstring_free(header);
 }
 
+/*
+ * extension of send_file, supports cache and can also send segments
+ */
 static void send_file_gio(struct log_info *log, int fd, int file_fd, const char *type) {
 
   int full_length;
@@ -232,6 +247,9 @@ static void send_file_gio(struct log_info *log, int fd, int file_fd, const char 
   utstring_free(header);
 }
 
+/*
+ * cgi case processor
+ */
 static void do_cgi(struct processor_state *aux, http_map_entry *http){
   int fd = cgi_bin_execute(http);
   if(fd >= 0) {
@@ -252,6 +270,10 @@ static void do_cgi(struct processor_state *aux, http_map_entry *http){
     push404(aux);
   }
 }
+
+/*
+ * main function for processing request
+ */
 void processor_inner_routine(struct processor_state *aux, http_map_entry *http) {
   if (was404_error(aux, http)) {
     return;
@@ -299,7 +321,11 @@ void processor_inner_routine(struct processor_state *aux, http_map_entry *http) 
   close(index_html_file_fd);
 }
 
-long long processor_state_routine(struct processor_state *aux) {
+/*
+ * When worker function receives ready socket, it executes this function.
+ * Does abstraction on keep-alive for processor_inner_routine
+ */
+static long long processor_state_routine(struct processor_state *aux) {
 
   while (1) {
     http_map_entry *http = http_parse(aux->fd);
@@ -340,7 +366,10 @@ long long processor_state_routine(struct processor_state *aux) {
   close(aux->fd);
 }
 
-void *one_port_listener(void *aux) {
+/*
+ * every listener thread executes this function
+ */
+static void *one_port_listener(void *aux) {
   int port = (long) aux;
 
 
@@ -395,7 +424,9 @@ void *one_port_listener(void *aux) {
   }
 }
 
-
+/*
+ * creates threads per port(listening)
+ */
 void start_server(config_map_entry *root) {
   processor_init();
 

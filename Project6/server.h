@@ -7,7 +7,9 @@
 
 #include "uthash.h"
 #include "map_entry.h"
-
+/*
+ * creates threads per port(listening)
+ */
 void start_server(config_map_entry *root);
 
 #endif //PROJECT6_SERVER_H

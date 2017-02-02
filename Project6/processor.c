@@ -9,6 +9,9 @@
 
 int epoll_fd;
 
+/*
+ * each worker executes this function
+ */
 void *processor(void *aux) {
   while (1) {
     struct epoll_event ev;
@@ -24,7 +27,9 @@ void *processor(void *aux) {
   }
 }
 
-
+/*
+ * creates epoll and worker threads
+ */
 void processor_init() {
   epoll_fd = epoll_create1(EPOLL_CLOEXEC);
   if (epoll_fd < 0) {
@@ -38,7 +43,9 @@ void processor_init() {
   }
 
 }
-
+/*
+ * adds new socket in epoll
+ */
 void processor_add(int fd, bool in, void *aux) {
   struct epoll_event ev;
   ev.events = in ? EPOLLIN : EPOLLOUT;

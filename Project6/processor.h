@@ -8,9 +8,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "logger.h"
-
+/*
+ * creates epoll and worker threads
+ */
 void processor_init();
-
+/*
+ * adds new socket in epoll
+ */
 void processor_add(int fd, bool in, void *aux);
 
 typedef struct processor_state {

@@ -2,8 +2,14 @@
 // Created by a on 1/23/17.
 //
 
+/**
+ * თუ მთლად სრული მულტისრედინგი გვინდა რაკი ლოგში ჩაწერისას ვიყენებთ ლოქს ჯობია შევქმნათ ცალკე ჩამწერი სრედი,
+ * თუმცა ჩაწერა იმდენად ჩქარა ხდება რომ არ გვიღირს.
+ */
 #include "logger.h"
 #include <arpa/inet.h>
+
+
 
 //https://en.wikipedia.org/wiki/C_date_and_time_functions
 void print_time(FILE *f){

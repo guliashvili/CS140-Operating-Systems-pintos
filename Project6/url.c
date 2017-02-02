@@ -6,7 +6,9 @@
 #include "url.h"
 
 //https://stackoverflow.com/questions/2673207/c-c-url-decode-library
-
+/*
+ * decodes url encoding
+ */
 void url_decode(char *dst, const char *src) {
   char a, b;
   while (*src) {
